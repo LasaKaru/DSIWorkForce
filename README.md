@@ -50,6 +50,8 @@ Measured by the integration test and the calibration tool on the real scan:
 
 ## Quick start (developer PC, Windows)
 
+Using Visual Studio 2022? Follow **[docs/06-visual-studio-2022.md](docs/06-visual-studio-2022.md)**. Command-line version:
+
 ```powershell
 # 1. Database (creates DSIWorkForce on your SQL Server, imports PC-011-A and the Daily Efficiency report)
 dotnet run --project src/DSI.WorkForce.DbMigrator -- --create-db --Database:ConnectionString="Server=localhost;Database=DSIWorkForce;Integrated Security=true;TrustServerCertificate=true"
@@ -81,6 +83,7 @@ Scans are not committed because they contain employee data.
 3. [Customizing](docs/03-customizing.md): **add an Excel column**, capture a new box from the form, add a new form type.
 4. [Form redesign recommendations](docs/04-form-redesign.md): small print changes that remove most manual typing.
 5. [Deployment & operations](docs/05-deployment.md): IIS, Windows Service, accounts, sizing, backups, monitoring.
+6. [Run it in Visual Studio 2022](docs/06-visual-studio-2022.md): install, create the DB, run Worker + Web + WPF, try a scan.
 
 ## Things to confirm with production
 

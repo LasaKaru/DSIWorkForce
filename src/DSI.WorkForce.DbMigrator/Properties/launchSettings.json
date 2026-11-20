@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "Create/upgrade DB (localhost)": {
+      "commandName": "Project",
+      "commandLineArgs": "--create-db \"--Database:ConnectionString=Server=localhost;Database=DSIWorkForce;Integrated Security=true;TrustServerCertificate=true\""
+    },
+    "Create/upgrade DB (LocalDB)": {
+      "commandName": "Project",
+      "commandLineArgs": "--create-db \"--Database:ConnectionString=Server=(localdb)\\MSSQLLocalDB;Database=DSIWorkForce;Integrated Security=true;TrustServerCertificate=true\""
+    },
+    "Re-import report layouts (localhost)": {
+      "commandName": "Project",
+      "commandLineArgs": "--force-reports \"--Database:ConnectionString=Server=localhost;Database=DSIWorkForce;Integrated Security=true;TrustServerCertificate=true\""
+    }
+  }
+}

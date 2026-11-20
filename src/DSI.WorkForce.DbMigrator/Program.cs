@@ -31,7 +31,17 @@ var templatesDir = Path.Combine(AppContext.BaseDirectory, "templates");
 void Log(string m) => Console.WriteLine($"{DateTime.Now:HH:mm:ss} {m}");
 
 // 1. Schema migrations (each script runs once, tracked in dbo.SchemaVersions)
-var result = DatabaseMigrator.Migrate(dbOptions.ConnectionString, args.Contains("--create-db"), Log);
+DbUp.Engine.DatabaseUpgradeResult result;
+try
+{
+    result = DatabaseMigrator.Migrate(dbOptions.ConnectionString, args.Contains("--create-db"), Log);
+}
+catch (Microsoft.Data.SqlClient.SqlException ex)
+{
+    Console.Error.WriteLine($"Cannot connect to SQL Server: {ex.Message}");
+    Console.Error.WriteLine("Check the server name in the connection string, that SQL Server is running, and that your Windows account has access.");
+    return 1;
+}
 if (!result.Successful)
 {
     Console.Error.WriteLine($"Migration failed: {result.Error?.Message}");
