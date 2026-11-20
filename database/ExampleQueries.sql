@@ -2,19 +2,23 @@
    Viewing the digitized worksheets directly in SQL Server (SSMS / Azure Data Studio).
    --------------------------------------------------------------------------------------------- */
 
--- 1. The Daily Efficiency Report exactly like the Excel sheet (one row per worksheet, hours 1..12 as columns)
+-- 1. The Daily Efficiency Report exactly like the Excel sheet:
+--    one row per HOUR of each worksheet, columns [1]..[12] = the 12 numbers written in that hour's cells
 SELECT * FROM rpt.vw_DailyEfficiency
 WHERE [Date] = '2026-11-17'
-ORDER BY [Resource No], [Shift];
+ORDER BY [Resource No], [Shift], [Sheet ID], [Row No];
+
+-- 1b. One row per worksheet (operator / press / shift): hourly totals, rejection, shift efficiency, target %
+SELECT * FROM rpt.fn_ShiftSummary('2026-11-17', '2026-11-17');
 
 -- Same thing, fastest form for big date ranges (seeks the WorkDate index):
 SELECT * FROM rpt.fn_DailyEfficiency('2026-11-01', '2026-11-30');
 
--- 2. Efficiency per press for a month
-SELECT [Resource No], SUM([No of Units produced]) AS Units, AVG([Efficiency]) AS AvgEfficiency
+-- 2. Efficiency per press for a month (from the hourly rows)
+SELECT [Resource No], SUM([No of Units produced]) AS Units, SUM([Rejection]) AS Rejection, AVG([Efficiency]) AS AvgHourlyEfficiency
 FROM rpt.fn_DailyEfficiency('2026-11-01', '2026-11-30')
 GROUP BY [Resource No]
-ORDER BY AvgEfficiency;
+ORDER BY AvgHourlyEfficiency;
 
 -- 3. Every captured value of one sheet (long format) - what the OCR read and what a reviewer changed
 SELECT FieldKey, Label, RowIndex, RawText, ValueText, Confidence, Source, IsCorrected

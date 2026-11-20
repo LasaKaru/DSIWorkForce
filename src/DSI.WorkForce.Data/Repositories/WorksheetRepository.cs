@@ -7,6 +7,7 @@ using DSI.WorkForce.Core.Model;
 using DSI.WorkForce.Core.Normalization;
 using DSI.WorkForce.Core.Reporting;
 using DSI.WorkForce.Core.Templates;
+using DSI.WorkForce.Core.Validation;
 using Microsoft.Data.SqlClient;
 
 namespace DSI.WorkForce.Data.Repositories;
@@ -117,13 +118,14 @@ public sealed class WorksheetRepository(IDbConnectionFactory db, TemplateReposit
         var values = new List<WorksheetValueDto>();
         foreach (var f in template.Fields)
         {
-            var rows = f.IsMultiRow ? Enumerable.Range(1, f.Rows) : [0];
-            foreach (var r in rows)
+            foreach (var r in f.RowIndexes())
             {
                 stored.TryGetValue((f.Key, r), out var s);
-                values.Add(new WorksheetValueDto(f.Key, r, f.IsMultiRow ? $"{f.Label} #{r}" : f.Label, f.Group, f.Type.ToString(),
+                var (gridRow, gridCol) = f.IsGrid ? f.CellOf(r) : (0, 0);
+                var label = f.IsGrid ? $"{f.Label} - hour {gridRow}, cell {gridCol}" : f.IsMultiRow ? $"{f.Label} #{r}" : f.Label;
+                values.Add(new WorksheetValueDto(f.Key, r, label, f.Group, f.Type.ToString(),
                     s?.RawText, s?.ValueText, s?.Confidence ?? 1m, s?.Source ?? "Omr", s?.IsCorrected ?? false,
-                    f.Zone.Row(r == 0 ? 1 : r, f.Rows)));
+                    f.ZoneOf(r), gridRow, gridCol, f.Extractor == ExtractorKind.Computed));
             }
         }
         return (new WorksheetDetailDto(head.ToDto(), values, issues, head.RowVer), head.ImagePath);
@@ -139,6 +141,7 @@ public sealed class WorksheetRepository(IDbConnectionFactory db, TemplateReposit
         var master = await masters.LoadSnapshotAsync(ct);
         var refDate = summary.WorkDate ?? DateOnly.FromDateTime(summary.CreatedAt);
         var existing = detail.Detail.Values.ToDictionary(v => (v.FieldKey, v.RowIndex));
+        var corrected = new Dictionary<(string, int), ExtractedValue>();
 
         await using var conn = await db.OpenAsync(ct);
         await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(ct);
@@ -155,7 +158,9 @@ public sealed class WorksheetRepository(IDbConnectionFactory db, TemplateReposit
             var fi = fieldMap[field.Key];
             var v = ValueNormalizer.Normalize(field, c.RowIndex, c.Value, 1m, ValueSource.Manual, refDate);
             existing.TryGetValue((c.FieldKey, c.RowIndex), out var old);
+            if (field.Extractor == ExtractorKind.Computed) continue;   // sums are recalculated below, never typed
             if (string.Equals(old?.Value ?? "", v.ValueText ?? "", StringComparison.Ordinal)) continue;
+            corrected[(field.Key, c.RowIndex)] = v;
 
             // Item corrections: accept an item code or description from the master and learn the old spelling.
             if (field.Lookup == "Item" && v.ValueText is not null)
@@ -205,6 +210,8 @@ public sealed class WorksheetRepository(IDbConnectionFactory db, TemplateReposit
             }
         }
 
+        await RecalculateComputedAsync(conn, tx, worksheetId, template, fieldMap, existing, corrected, ct);
+
         if (request.MarkVerified)
             await conn.ExecuteAsync(new CommandDefinition("""
                 UPDATE dsi.Worksheet SET Status = N'Verified', VerifiedBy = @user, VerifiedAt = SYSUTCDATETIME(), MinConfidence = 1 WHERE WorksheetId = @worksheetId;
@@ -212,6 +219,41 @@ public sealed class WorksheetRepository(IDbConnectionFactory db, TemplateReposit
                 """, new { worksheetId, user }, tx, cancellationToken: ct));
 
         await tx.CommitAsync(ct);
+    }
+
+    /// <summary>Re-sums computed fields (hourly units) from the current cell values after a reviewer edited cells.</summary>
+    private static async Task RecalculateComputedAsync(SqlConnection conn, SqlTransaction tx, long worksheetId, FormTemplateDefinition template,
+        IReadOnlyDictionary<string, FieldInfo> fieldMap, IReadOnlyDictionary<(string, int), WorksheetValueDto> existing,
+        IReadOnlyDictionary<(string, int), ExtractedValue> corrected, CancellationToken ct)
+    {
+        var computedFields = template.Fields.Where(f => f.Extractor == ExtractorKind.Computed && f.SumOf is not null).ToList();
+        if (computedFields.Count == 0 || corrected.Count == 0) return;
+
+        var ws = new WorksheetExtraction { TemplateCode = template.TemplateCode, PageNo = 0 };
+        foreach (var src in computedFields.Select(f => template.Find(f.SumOf!)).OfType<FieldDefinition>().Distinct())
+            foreach (var r in src.RowIndexes())
+            {
+                if (corrected.TryGetValue((src.Key, r), out var cv)) { ws.Values.Add(cv); continue; }
+                existing.TryGetValue((src.Key, r), out var ev);
+                ws.Values.Add(new ExtractedValue
+                {
+                    FieldKey = src.Key, RowIndex = r, ValueText = ev?.Value, Confidence = ev?.Confidence ?? 1m,
+                    ValueNumber = decimal.TryParse(ev?.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var n) ? n : null,
+                });
+            }
+        ComputedFields.Apply(ws, template);
+
+        foreach (var f in computedFields)
+            foreach (var v in ws.GetRows(f.Key))
+                await conn.ExecuteAsync(new CommandDefinition("""
+                    DELETE dsi.WorksheetValue WHERE WorksheetId = @worksheetId AND FieldId = @FieldId AND RowIndex = @RowIndex;
+                    IF @ValueNumber IS NOT NULL OR @Confidence < 0.9
+                        INSERT dsi.WorksheetValue (WorksheetId, FieldId, RowIndex, RawText, ValueText, ValueNumber, Confidence, Source, IsCorrected)
+                        VALUES (@worksheetId, @FieldId, @RowIndex, @RawText, @ValueText, @ValueNumber, @Confidence, N'Computed', 1);
+                    """, new
+                {
+                    worksheetId, fieldMap[f.Key].FieldId, RowIndex = (byte)v.RowIndex, v.RawText, v.ValueText, v.ValueNumber, v.Confidence,
+                }, tx, cancellationToken: ct));
     }
 
     public async Task RejectAsync(long worksheetId, string user, string reason, CancellationToken ct = default)

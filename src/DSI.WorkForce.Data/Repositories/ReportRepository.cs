@@ -11,9 +11,9 @@ public sealed class ReportRepository(IDbConnectionFactory db, TemplateRepository
     {
         await using var conn = await db.OpenAsync(ct);
         var defs = (await conn.QueryAsync<DefRow>(new CommandDefinition(
-            "SELECT ReportId, Code, Title, Subtitle, TemplateCodes, OnlyApproved FROM rpt.ReportDefinition ORDER BY Title", cancellationToken: ct))).ToList();
+            "SELECT ReportId, Code, Title, Subtitle, TemplateCodes, OnlyApproved, RowField FROM rpt.ReportDefinition ORDER BY Title", cancellationToken: ct))).ToList();
         var cols = (await conn.QueryAsync<ColRow>(new CommandDefinition(
-            "SELECT ReportId, ColumnOrder, ColumnKey, Header, SourceType, Source, RowIndex, Aggregate, Expression, Format, IsVisible FROM rpt.ReportColumn",
+            "SELECT ReportId, ColumnOrder, ColumnKey, Header, SourceType, Source, RowIndex, Cell, Aggregate, Expression, Format, IsVisible FROM rpt.ReportColumn",
             cancellationToken: ct))).ToLookup(c => c.ReportId);
         return defs.Select(d => d.ToModel(cols[d.ReportId])).ToList();
     }
@@ -32,22 +32,22 @@ public sealed class ReportRepository(IDbConnectionFactory db, TemplateRepository
         var reportId = await conn.ExecuteScalarAsync<int>(new CommandDefinition("""
             MERGE rpt.ReportDefinition AS t
             USING (SELECT @Code AS Code) AS s ON t.Code = s.Code
-            WHEN MATCHED THEN UPDATE SET Title = @Title, Subtitle = @Subtitle, TemplateCodes = @TemplateCodes, OnlyApproved = @OnlyApproved, UpdatedAt = SYSUTCDATETIME()
-            WHEN NOT MATCHED THEN INSERT (Code, Title, Subtitle, TemplateCodes, OnlyApproved) VALUES (@Code, @Title, @Subtitle, @TemplateCodes, @OnlyApproved)
+            WHEN MATCHED THEN UPDATE SET Title = @Title, Subtitle = @Subtitle, TemplateCodes = @TemplateCodes, OnlyApproved = @OnlyApproved, RowField = @RowField, UpdatedAt = SYSUTCDATETIME()
+            WHEN NOT MATCHED THEN INSERT (Code, Title, Subtitle, TemplateCodes, OnlyApproved, RowField) VALUES (@Code, @Title, @Subtitle, @TemplateCodes, @OnlyApproved, @RowField)
             OUTPUT inserted.ReportId;
             """, new
         {
-            report.Code, report.Title, report.Subtitle, report.OnlyApproved,
+            report.Code, report.Title, report.Subtitle, report.OnlyApproved, RowField = string.IsNullOrWhiteSpace(report.RowField) ? null : report.RowField,
             TemplateCodes = report.TemplateCodes.Count == 0 ? null : string.Join(",", report.TemplateCodes),
         }, tx, cancellationToken: ct));
 
         await conn.ExecuteAsync(new CommandDefinition("DELETE rpt.ReportColumn WHERE ReportId = @reportId", new { reportId }, tx, cancellationToken: ct));
         await conn.ExecuteAsync(new CommandDefinition("""
-            INSERT rpt.ReportColumn (ReportId, ColumnOrder, ColumnKey, Header, SourceType, Source, RowIndex, Aggregate, Expression, Format, IsVisible)
-            VALUES (@reportId, @Order, @Key, @Header, @SourceType, @Source, @RowIndex, @Aggregate, @Expression, @Format, @Visible);
+            INSERT rpt.ReportColumn (ReportId, ColumnOrder, ColumnKey, Header, SourceType, Source, RowIndex, Cell, Aggregate, Expression, Format, IsVisible)
+            VALUES (@reportId, @Order, @Key, @Header, @SourceType, @Source, @RowIndex, @Cell, @Aggregate, @Expression, @Format, @Visible);
             """, report.Columns.Select(c => new
         {
-            reportId, c.Order, c.Key, c.Header, SourceType = c.SourceType.ToString(), c.Source, c.RowIndex, c.Aggregate, c.Expression, c.Format, c.Visible,
+            reportId, c.Order, c.Key, c.Header, SourceType = c.SourceType.ToString(), c.Source, c.RowIndex, c.Cell, c.Aggregate, c.Expression, c.Format, c.Visible,
         }), tx, cancellationToken: ct));
 
         // CREATE VIEW / FUNCTION must each be the only statement in their batch.
@@ -71,6 +71,7 @@ public sealed class ReportRepository(IDbConnectionFactory db, TemplateRepository
         var report = await GetAsync(q.ReportCode, ct) ?? throw new KeyNotFoundException($"Report {q.ReportCode} not found.");
         var fn = ReportViewSqlBuilder.Q(report.FunctionName);
         var sheetId = ReportViewSqlBuilder.Q(ReportViewSqlBuilder.SheetIdColumn);
+        var rowOrder = report.RowField is null ? "" : ", r." + ReportViewSqlBuilder.Q(ReportViewSqlBuilder.RowNoColumn);
 
         await using var conn = await db.OpenAsync(ct);
         await using var reader = await conn.ExecuteReaderAsync(new CommandDefinition($"""
@@ -80,7 +81,7 @@ public sealed class ReportRepository(IDbConnectionFactory db, TemplateRepository
             WHERE (@shift IS NULL OR w.Shift = @shift)
               AND (@resourceNo IS NULL OR w.ResourceNo = @resourceNo)
               AND (@epfNo IS NULL OR w.EpfNo = @epfNo)
-            ORDER BY w.WorkDate, w.Shift, w.ResourceNo, w.EpfNo, w.WorksheetId;
+            ORDER BY w.WorkDate, w.Shift, w.ResourceNo, w.EpfNo, w.WorksheetId{rowOrder};
             """, new
         {
             maxRows, from = q.From.ToDateTime(TimeOnly.MinValue), to = q.To.ToDateTime(TimeOnly.MinValue),
@@ -114,15 +115,16 @@ public sealed class ReportRepository(IDbConnectionFactory db, TemplateRepository
         public string? Subtitle { get; set; }
         public string? TemplateCodes { get; set; }
         public bool OnlyApproved { get; set; }
+        public string? RowField { get; set; }
 
         public ReportDefinition ToModel(IEnumerable<ColRow> cols) => new()
         {
-            Code = Code, Title = Title, Subtitle = Subtitle, OnlyApproved = OnlyApproved,
+            Code = Code, Title = Title, Subtitle = Subtitle, OnlyApproved = OnlyApproved, RowField = RowField,
             TemplateCodes = TemplateCodes?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [],
             Columns = cols.OrderBy(c => c.ColumnOrder).Select(c => new ReportColumnDefinition
             {
                 Order = c.ColumnOrder, Key = c.ColumnKey, Header = c.Header, SourceType = Enum.Parse<ReportSourceType>(c.SourceType),
-                Source = c.Source, RowIndex = c.RowIndex, Aggregate = c.Aggregate, Expression = c.Expression, Format = c.Format, Visible = c.IsVisible,
+                Source = c.Source, RowIndex = c.RowIndex, Cell = c.Cell, Aggregate = c.Aggregate, Expression = c.Expression, Format = c.Format, Visible = c.IsVisible,
             }).ToList(),
         };
     }
@@ -136,6 +138,7 @@ public sealed class ReportRepository(IDbConnectionFactory db, TemplateRepository
         public string SourceType { get; set; } = "";
         public string? Source { get; set; }
         public int? RowIndex { get; set; }
+        public int? Cell { get; set; }
         public string? Aggregate { get; set; }
         public string? Expression { get; set; }
         public string? Format { get; set; }

@@ -1,3 +1,4 @@
+using DSI.WorkForce.Core.Model;
 using DSI.WorkForce.Core.Reporting;
 using DSI.WorkForce.Core.Templates;
 
@@ -12,9 +13,13 @@ public class TemplateAndReportTests
         Assert.Equal("PC-011-A", t.TemplateCode);
         Assert.Empty(TemplateSerializer.Validate(t));
         Assert.Equal(14, t.Fields.Count(f => f.Group == "Machine Checklist"));
-        var hourly = t.Find("HOURLY_UNITS")!;
-        Assert.Equal(8, hourly.Rows);
-        Assert.Equal(12, hourly.Columns);
+        var cells = t.Find("HOURLY_CELL")!;
+        Assert.True(cells.IsGrid);
+        Assert.Equal(96, cells.RowIndexes().Count());          // 8 hours x 12 handwritten numbers
+        Assert.Equal(15, cells.CellIndex(2, 3));               // stored RowIndex of hour 2, cell 3
+        Assert.Equal((2, 3), cells.CellOf(15));
+        Assert.Equal(ExtractorKind.Computed, t.Find("HOURLY_UNITS")!.Extractor);
+        Assert.NotNull(t.Find("HOURLY_REJECTION"));
     }
 
     [Fact]
@@ -47,11 +52,15 @@ public class TemplateAndReportTests
         Assert.DoesNotContain(-1, positions);
         Assert.Equal(positions.OrderBy(p => p), positions);
 
-        Assert.Contains("b.[Units] / NULLIF(b.[StdRate] * b.[HoursWorked], 0) AS [Efficiency]", sql.ViewSql);
-        Assert.Contains("WITHIN GROUP (ORDER BY v.RowIndex)", sql.ViewSql);
-        Assert.Contains("LEFT JOIN dsi.ShiftMaster sh", sql.ViewSql);
+        // One row per hour, like the Excel: Efficiency = units of the hour / standard rate per hour (=V/W)
+        Assert.Contains("CROSS JOIN (VALUES (1), (2), (3), (4), (5), (6), (7), (8)) AS r(n)", sql.ViewSql);
+        Assert.Contains("HAVING COUNT(CASE WHEN", sql.ViewSql);                       // empty hours are skipped
+        Assert.Contains("v.RowIndex = (r.n - 1) * 12 + 3", sql.ViewSql);              // column "3" = cell 3 of this hour
+        Assert.Contains("DATEADD(HOUR, r.n - 1, sh.StartTime)", sql.ViewSql);         // Start time of this hour
+        Assert.Contains("b.[Units] / NULLIF(b.[StdRate], 0) AS [Efficiency]", sql.ViewSql);
+        Assert.Contains("AS [Rejection]", outer);
         Assert.Contains("AS [Sheet ID]", sql.ViewSql);
-        Assert.DoesNotContain("AS [Hours Worked]", sql.ViewSql);   // hidden helper column
+        Assert.Contains("AS [Row No]", sql.ViewSql);
     }
 
     [Fact]
@@ -65,6 +74,28 @@ public class TemplateAndReportTests
         });
         var sql = ReportViewSqlBuilder.Build(report, TestData.FieldMap(t));
         Assert.Contains("AS [Curing Temp]", sql.ViewSql);
+    }
+
+    [Fact]
+    public void Shift_summary_is_one_row_per_sheet()
+    {
+        var sql = ReportViewSqlBuilder.Build(TestData.Report("ShiftSummary"), TestData.FieldMap(TestData.PressTemplate()));
+        Assert.DoesNotContain("CROSS JOIN", sql.ViewSql);
+        Assert.Contains("v.RowIndex = 3", sql.ViewSql);   // "Hour 3" column
+        Assert.Contains("b.[Units] / NULLIF(b.[StdRate] * b.[HoursWorked], 0) AS [Efficiency]", sql.ViewSql);
+        Assert.DoesNotContain("AS [Hours Worked]", sql.ViewSql);   // hidden helper column
+    }
+
+    [Fact]
+    public void Grid_column_needs_a_cell_and_hour_times_need_a_per_row_report()
+    {
+        var t = TestData.PressTemplate();
+        var report = TestData.Report("ShiftSummary");
+        report.Columns.Add(new ReportColumnDefinition { Order = 900, Key = "X", Header = "X", SourceType = ReportSourceType.Field, Source = "HOURLY_CELL", RowIndex = 1 });
+        report.Columns.Add(new ReportColumnDefinition { Order = 901, Key = "Y", Header = "Y", SourceType = ReportSourceType.Lookup, Source = "Shift.HourStart" });
+        var errors = ReportViewSqlBuilder.Validate(report, TestData.FieldMap(t));
+        Assert.Contains(errors, e => e.Contains("choose a cell"));
+        Assert.Contains(errors, e => e.Contains("per-row report"));
     }
 
     [Theory]

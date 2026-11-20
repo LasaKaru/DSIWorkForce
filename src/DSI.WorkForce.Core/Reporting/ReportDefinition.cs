@@ -22,6 +22,11 @@ public sealed class ReportDefinition
     public string? Subtitle { get; set; }
     /// <summary>Template codes whose worksheets feed this report (empty = all).</summary>
     public List<string> TemplateCodes { get; set; } = new();
+    /// <summary>
+    /// Null = one report row per worksheet. A multi-row field key (e.g. HOURLY_UNITS) = one report row per
+    /// row of that table on the form (per hour), empty rows skipped. Field columns then refer to the current row.
+    /// </summary>
+    public string? RowField { get; set; }
     /// <summary>When true the view only shows AutoApproved + Verified sheets.</summary>
     public bool OnlyApproved { get; set; }
     public List<ReportColumnDefinition> Columns { get; set; } = new();
@@ -40,7 +45,10 @@ public sealed class ReportColumnDefinition
     public ReportSourceType SourceType { get; set; }
     /// <summary>Header column name, FieldKey, or Lookup "Table.Column".</summary>
     public string? Source { get; set; }
+    /// <summary>Fixed row of a table field (1..n). Leave empty in per-row reports to use the current row.</summary>
     public int? RowIndex { get; set; }
+    /// <summary>Grid fields only: which cell (column 1..n) of the row, e.g. HOURLY_CELL cell 3.</summary>
+    public int? Cell { get; set; }
     /// <summary>SUM | MIN | MAX | AVG | COUNT | LIST</summary>
     public string? Aggregate { get; set; }
     public string? Expression { get; set; }

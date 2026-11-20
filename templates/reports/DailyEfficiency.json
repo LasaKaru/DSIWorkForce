@@ -1,8 +1,9 @@
 {
-  "$comment": "Layout of 'Daily Efficiency Report Format 20.11.2026.xlsx' as data. Imported into rpt.ReportColumn by the DbMigrator when the report does not exist yet; afterwards edit it in Admin > Report Columns (or in SQL) and rebuild.",
+  "$comment": "Layout of 'Daily Efficiency Report Format 20.11.2026.xlsx' as data: ONE ROW PER HOUR of each worksheet (rowField = HOURLY_UNITS). Columns 1..12 are the 12 handwritten cells of that hour; Efficiency = units / standard rate per hour (=V/W in the Excel). Imported by the DbMigrator when missing; afterwards edit it in Admin > Report columns and rebuild.",
   "code": "DailyEfficiency",
   "title": "Daily Efficiency Report",
   "subtitle": "Employee wise Hourly",
+  "rowField": "HOURLY_UNITS",
   "templateCodes": [
     "PC-011-A"
   ],
@@ -27,8 +28,7 @@
       "key": "ItemDescription",
       "header": "Item Description",
       "sourceType": "Field",
-      "source": "ITEM_DESCRIPTION",
-      "rowIndex": 0
+      "source": "ITEM_DESCRIPTION"
     },
     {
       "order": 40,
@@ -57,7 +57,7 @@
       "key": "StartTime",
       "header": "Start time",
       "sourceType": "Lookup",
-      "source": "Shift.StartTime",
+      "source": "Shift.HourStart",
       "format": "HH:mm"
     },
     {
@@ -65,124 +65,123 @@
       "key": "EndTime",
       "header": "End Time",
       "sourceType": "Lookup",
-      "source": "Shift.EndTime",
+      "source": "Shift.HourEnd",
       "format": "HH:mm"
     },
     {
       "order": 90,
-      "key": "H1",
+      "key": "C1",
       "header": "1",
       "sourceType": "Field",
-      "source": "HOURLY_UNITS",
-      "rowIndex": 1,
+      "source": "HOURLY_CELL",
+      "cell": 1,
       "format": "#,##0"
     },
     {
       "order": 100,
-      "key": "H2",
+      "key": "C2",
       "header": "2",
       "sourceType": "Field",
-      "source": "HOURLY_UNITS",
-      "rowIndex": 2,
+      "source": "HOURLY_CELL",
+      "cell": 2,
       "format": "#,##0"
     },
     {
       "order": 110,
-      "key": "H3",
+      "key": "C3",
       "header": "3",
       "sourceType": "Field",
-      "source": "HOURLY_UNITS",
-      "rowIndex": 3,
+      "source": "HOURLY_CELL",
+      "cell": 3,
       "format": "#,##0"
     },
     {
       "order": 120,
-      "key": "H4",
+      "key": "C4",
       "header": "4",
       "sourceType": "Field",
-      "source": "HOURLY_UNITS",
-      "rowIndex": 4,
+      "source": "HOURLY_CELL",
+      "cell": 4,
       "format": "#,##0"
     },
     {
       "order": 130,
-      "key": "H5",
+      "key": "C5",
       "header": "5",
       "sourceType": "Field",
-      "source": "HOURLY_UNITS",
-      "rowIndex": 5,
+      "source": "HOURLY_CELL",
+      "cell": 5,
       "format": "#,##0"
     },
     {
       "order": 140,
-      "key": "H6",
+      "key": "C6",
       "header": "6",
       "sourceType": "Field",
-      "source": "HOURLY_UNITS",
-      "rowIndex": 6,
+      "source": "HOURLY_CELL",
+      "cell": 6,
       "format": "#,##0"
     },
     {
       "order": 150,
-      "key": "H7",
+      "key": "C7",
       "header": "7",
       "sourceType": "Field",
-      "source": "HOURLY_UNITS",
-      "rowIndex": 7,
+      "source": "HOURLY_CELL",
+      "cell": 7,
       "format": "#,##0"
     },
     {
       "order": 160,
-      "key": "H8",
+      "key": "C8",
       "header": "8",
       "sourceType": "Field",
-      "source": "HOURLY_UNITS",
-      "rowIndex": 8,
+      "source": "HOURLY_CELL",
+      "cell": 8,
       "format": "#,##0"
     },
     {
       "order": 170,
-      "key": "H9",
+      "key": "C9",
       "header": "9",
       "sourceType": "Field",
-      "source": "HOURLY_UNITS",
-      "rowIndex": 9,
+      "source": "HOURLY_CELL",
+      "cell": 9,
       "format": "#,##0"
     },
     {
       "order": 180,
-      "key": "H10",
+      "key": "C10",
       "header": "10",
       "sourceType": "Field",
-      "source": "HOURLY_UNITS",
-      "rowIndex": 10,
+      "source": "HOURLY_CELL",
+      "cell": 10,
       "format": "#,##0"
     },
     {
       "order": 190,
-      "key": "H11",
+      "key": "C11",
       "header": "11",
       "sourceType": "Field",
-      "source": "HOURLY_UNITS",
-      "rowIndex": 11,
+      "source": "HOURLY_CELL",
+      "cell": 11,
       "format": "#,##0"
     },
     {
       "order": 200,
-      "key": "H12",
+      "key": "C12",
       "header": "12",
       "sourceType": "Field",
-      "source": "HOURLY_UNITS",
-      "rowIndex": 12,
+      "source": "HOURLY_CELL",
+      "cell": 12,
       "format": "#,##0"
     },
     {
       "order": 210,
       "key": "Units",
       "header": "No of Units produced",
-      "sourceType": "FieldAggregate",
+      "sourceType": "Field",
       "source": "HOURLY_UNITS",
-      "aggregate": "SUM",
       "format": "#,##0"
     },
     {
@@ -195,69 +194,26 @@
     },
     {
       "order": 230,
-      "key": "HoursWorked",
-      "header": "Hours Worked",
-      "sourceType": "FieldAggregate",
-      "source": "HOURLY_UNITS",
-      "aggregate": "COUNT",
-      "visible": false
-    },
-    {
-      "order": 240,
       "key": "Efficiency",
       "header": "Efficiency",
       "sourceType": "Expression",
-      "expression": "{Units} / NULLIF({StdRate} * {HoursWorked}, 0)",
+      "expression": "{Units} / NULLIF({StdRate}, 0)",
       "format": "0.00%"
     },
     {
-      "order": 250,
+      "order": 240,
       "key": "Reason",
       "header": "Reason",
-      "sourceType": "FieldAggregate",
-      "source": "HOURLY_REASON",
-      "aggregate": "LIST"
-    },
-    {
-      "order": 260,
-      "key": "TargetQty",
-      "header": "Target",
       "sourceType": "Field",
-      "source": "TARGET_QTY",
-      "rowIndex": 0,
-      "format": "#,##0"
+      "source": "HOURLY_REASON"
     },
     {
-      "order": 270,
-      "key": "TotalWritten",
-      "header": "Total Production (sheet)",
+      "order": 250,
+      "key": "Rejection",
+      "header": "Rejection",
       "sourceType": "Field",
-      "source": "TOTAL_PRODUCTION",
-      "rowIndex": 0,
+      "source": "HOURLY_REJECTION",
       "format": "#,##0"
-    },
-    {
-      "order": 280,
-      "key": "Defects",
-      "header": "Defects",
-      "sourceType": "FieldAggregate",
-      "source": "HOURLY_DEFECTS",
-      "aggregate": "SUM",
-      "format": "#,##0"
-    },
-    {
-      "order": 290,
-      "key": "OperatorName",
-      "header": "Operator",
-      "sourceType": "Lookup",
-      "source": "Employee.Name"
-    },
-    {
-      "order": 300,
-      "key": "Status",
-      "header": "Status",
-      "sourceType": "Header",
-      "source": "Status"
     }
   ]
 }

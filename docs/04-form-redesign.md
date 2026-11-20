@@ -15,7 +15,10 @@ They are ordered by impact.
 6. **Four solid black corner squares** (≈8 mm) just outside the border, for even more robust alignment of
    folded or phone-photographed sheets (`alignment.method: Fiducials`).
 7. **Item / tyre**: pre-print it from the production plan, or use an item-code comb box instead of free text.
-8. Keep the **hourly tick grid** as it is: it is the most reliable part of the form (OMR, ~100%).
+8. **Hourly number cells**: keep one number per cell, written large and centred, leaving cells **empty** (not "0" or
+   "-") when nothing was produced, so empty cells are skipped without any reading. If the number in a cell is
+   always the press cavity count (e.g. always 6), a **tick** instead of a number would be read with ~100% accuracy
+   and no AI (the system supports this too: extractor `OmrTally`, `unitsPerTick` from `dsi.Machine`).
 9. Print in **black on white**. The grey shaded header bands make thresholding harder; light colour (drop-out ink)
    for printed labels is even better.
 

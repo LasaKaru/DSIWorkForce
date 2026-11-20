@@ -41,12 +41,16 @@ public partial class SqlSyntaxTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Generated_report_view_and_function_are_valid_tsql()
+    public void Generated_report_views_and_functions_are_valid_tsql()
     {
-        var sql = ReportViewSqlBuilder.Build(TestData.DailyEfficiency(), TestData.FieldMap(TestData.PressTemplate()));
-        output.WriteLine(sql.ViewSql);
-        AssertParses("view", sql.ViewSql);
-        AssertParses("function", sql.FunctionSql);
+        Assert.NotEmpty(Parse("SELECT FROM WHERE"));   // the parser really rejects bad SQL
+        foreach (var code in TestData.ReportCodes())
+        {
+            var sql = ReportViewSqlBuilder.Build(TestData.Report(code), TestData.FieldMap(TestData.PressTemplate()));
+            output.WriteLine(sql.ViewSql);
+            AssertParses(code + " view", sql.ViewSql);
+            AssertParses(code + " function", sql.FunctionSql);
+        }
     }
 
     [Fact]

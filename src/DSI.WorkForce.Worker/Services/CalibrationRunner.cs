@@ -34,7 +34,7 @@ public static class CalibrationRunner
             var ws = await extractor.ExtractAsync(page, p, template, MasterDataSnapshot.Empty, DateOnly.FromDateTime(DateTime.Today), CancellationToken.None);
 
             using var aligned = Cv2.ImDecode(ws.AlignedImageJpeg!, ImreadModes.Color);
-            foreach (var f in template.Fields)
+            foreach (var f in template.Fields.Where(f => f.Extractor != ExtractorKind.Computed && !f.IsGrid))
                 for (var r = 1; r <= f.Rows; r++)
                 {
                     var v = ws.Get(f.Key, f.IsMultiRow ? r : 0);
@@ -53,6 +53,26 @@ public static class CalibrationRunner
                     if (r == 1) Cv2.PutText(aligned, f.Key, new Point(rect.X + 2, rect.Y + 14), HersheyFonts.HersheyPlain, 0.9, Scalar.Blue, 1);
                     if (v?.ValueText is { } text && f.Extractor is ExtractorKind.OmrTally)
                         Cv2.PutText(aligned, $"{v.RawText} ticks = {text}", new Point(rect.Right + 4, rect.Y + rect.Height - 6), HersheyFonts.HersheyPlain, 1.0, Scalar.Red, 1);
+                }
+
+            // Grid fields: one rectangle per cell; the computed row sum is printed to the right of each row.
+            foreach (var f in template.Fields.Where(f => f.IsGrid))
+                foreach (var idx in f.RowIndexes())
+                {
+                    var v = ws.Get(f.Key, idx);
+                    var color = v is null ? Scalar.Gray : v.Confidence < template.AutoApproveConfidence ? Scalar.Red : v.IsEmpty ? Scalar.Orange : Scalar.LimeGreen;
+                    var z = f.ZoneOf(idx);
+                    Cv2.Rectangle(aligned, new Rect((int)(z.X * aligned.Width) + 2, (int)(z.Y * aligned.Height) + 2,
+                        (int)(z.W * aligned.Width) - 4, (int)(z.H * aligned.Height) - 4), color, 2);
+                }
+            foreach (var f in template.Fields.Where(f => f.Extractor == ExtractorKind.Computed))
+                for (var r = 1; r <= f.Rows; r++)
+                {
+                    var z = f.ZoneOf(r);
+                    var sum = ws.Get(f.Key, r);
+                    var text = sum?.ValueText ?? (sum is { Confidence: < 0.9m } ? "?" : "-");
+                    Cv2.PutText(aligned, $"sum {text}", new Point((int)((z.X + z.W) * aligned.Width) + 4, (int)((z.Y + z.H) * aligned.Height) - 8),
+                        HersheyFonts.HersheyPlain, 1.0, Scalar.Red, 1);
                 }
 
             var stem = Path.Combine(outDir, $"{Path.GetFileNameWithoutExtension(input)}_p{p}");

@@ -6,7 +6,7 @@ There are two layers, and most changes only touch one of them:
 |---|---|---|
 | Add / remove / rename / reorder a column in the Excel-style report | Report metadata (`rpt.ReportColumn`) | No |
 | Show a value the form already captures (e.g. curing temperature) | Report metadata | No |
-| Add a calculated column (target %, defects %) | Report metadata (Expression) | No |
+| Add a calculated column (target %, rejection %) | Report metadata (Expression) | No |
 | Capture a **new box on the paper form** | Template JSON (new version) + report metadata | No |
 | Add a completely new form (another section) | New template JSON + hot folder + report | No |
 | Join a new master table / new header column | `ReportViewSqlBuilder` whitelist | Small |
@@ -26,6 +26,16 @@ Column source types:
 | `Lookup` | Item.Description, Item.StandardRatePerHour, Item.Category, Employee.Name, Employee.Section, Machine.Name, Machine.Section, Machine.UnitsPerTick, Shift.StartTime, Shift.EndTime, Shift.Hours | `Standard Rate per Hour` |
 | `Expression` | formula over other columns' **keys** in `{}` | `{Units} / NULLIF({TargetQty}, 0)` |
 
+**Report shape.** *One report row per…* (`rowField`): empty = one row per worksheet; `HOURLY_UNITS` = one row per
+hour, like the Excel. In a per-hour report, table fields (HOURLY_REASON, HOURLY_REJECTION…) automatically mean
+"this hour", `HOURLY_CELL` + **Cell** `1..12` is a cell of this hour, and `RowNo`, `Shift.HourStart`,
+`Shift.HourEnd` are available. In a per-sheet report choose a **Row** (e.g. `HOURLY_UNITS` row 3 = hour 3) or use an
+aggregate over all hours.
+
+**Example: the Rejection column** (the orange column on the form, field `HOURLY_REJECTION`) is already in both
+reports. To add it yourself: *+ Add column* → Key `Rejection`, Header `Rejection`, Source type `Field`, Source
+`HOURLY_REJECTION` (per-hour report) or `FieldAggregate` + `SUM` (per-sheet report) → *Save & rebuild view*.
+
 Expressions may use numbers, `+ - * / ( )`, comparisons and `NULLIF, ISNULL, COALESCE, ROUND, ABS, CEILING, FLOOR,
 CASE WHEN THEN ELSE END, CAST AS DECIMAL/INT/FLOAT`. Anything else (quotes, `;`, comments, sub-queries) is rejected,
 so admins can't break or inject SQL. Untick **Visible** to keep a helper column (like `HoursWorked`) out of the report.
@@ -39,9 +49,10 @@ FROM rpt.ReportDefinition WHERE Code = N'DailyEfficiency';
 
 **Examples**
 * Target achievement: key `TargetPct`, Expression `{Units} / NULLIF({TargetQty}, 0)`, format `0.0%`.
-* Defect rate: Expression `{Defects} / NULLIF({Units}, 0)`, format `0.00%`.
+* Rejection rate (Daily Efficiency, per hour): Expression `{Rejection} / NULLIF({Units}, 0)`, format `0.00%`.
+* Good units: Expression `{Units} - ISNULL({Rejection}, 0)`.
 * A checklist item: `Field` `CHK_PRV_UNIT` → shows 1/0.
-* Efficiency exactly like the original Excel (`=V/W`): change the Efficiency expression to `{Units} / NULLIF({StdRate}, 0)`.
+* Efficiency on good units only: `({Units} - ISNULL({Rejection}, 0)) / NULLIF({StdRate}, 0)`.
 
 ## B. Capture a new box from the paper form
 
@@ -54,6 +65,7 @@ FROM rpt.ReportDefinition WHERE Code = N'DailyEfficiency';
    ```
    * `type`: Text, Integer, Decimal, Date, Time, Checkbox
    * `extractor`: `Omr` (tick box), `OmrTally` (row of tick cells; `rows`, `columns`, `unitsPerTick`),
+     `Computed` (`sumOf` a grid field: one sum per row),
      `Handwriting`, `Manual` (always typed by a reviewer)
    * optional: `required`, `min`, `max`, `allowedValues`, `dateFormats`, `lookup` (Employee/Machine/Item),
      `promoteTo` (WorkDate/Shift/ResourceNo/EpfNo/ItemCode), `rows` for table columns, `hint` for AI recognizers.

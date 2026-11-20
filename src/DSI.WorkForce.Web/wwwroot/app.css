@@ -48,3 +48,9 @@ table.excel { border-collapse:collapse; font-family:Calibri, "Segoe UI", sans-se
 pre { background:var(--bg); padding:8px; overflow:auto; font-size:12px; }
 #blazor-error-ui { background:lightyellow; bottom:0; box-shadow:0 -1px 2px rgba(0,0,0,.2); display:none; left:0; padding:.6rem 1.25rem .7rem; position:fixed; width:100%; z-index:1000; }
 #blazor-error-ui .dismiss { cursor:pointer; position:absolute; right:.75rem; top:.5rem; }
+/* Hourly number grid on the review screen */
+table.hourly th, table.hourly td { padding:2px; text-align:center; }
+table.hourly td.attention { background:#fff1d6; }
+table.hourly input.cell { width:3.2em; text-align:center; padding:2px; }
+table.hourly .right { text-align:right; padding-right:8px; }
+.snippet.row-snippet { width:100%; max-height:none; margin:4px 0; }

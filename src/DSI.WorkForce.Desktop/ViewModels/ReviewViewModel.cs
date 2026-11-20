@@ -91,7 +91,7 @@ public sealed partial class ReviewViewModel(ApiClient api) : ObservableObject
     {
         Fields.Clear();
         if (_detail is null) return;
-        foreach (var v in _detail.Values)
+        foreach (var v in _detail.Values.Where(v => !v.IsComputed))   // hourly sums are recalculated by the server
         {
             var attention = v.Confidence < 0.9m || _detail.Issues.Any(i => i.FieldKey == v.FieldKey && i.RowIndex == v.RowIndex);
             if (ShowAllFields || attention) Fields.Add(new FieldRow { Source = v, NeedsAttention = attention, Value = v.Value });

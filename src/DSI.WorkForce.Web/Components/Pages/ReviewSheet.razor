@@ -35,6 +35,54 @@ else
                 </ul>
             }
 
+            @foreach (var grid in _detail.Values.Where(v => v.GridColumn > 0).GroupBy(v => v.FieldKey))
+            {
+                var cells = grid.ToList();
+                var rows = cells.Max(c => c.GridRow);
+                var cols = cells.Max(c => c.GridColumn);
+                <h3>@cells[0].Group - numbers written in each cell</h3>
+                @if (_focus is { GridColumn: > 0 } fc && fc.FieldKey == grid.Key)
+                {
+                    <div class="snippet row-snippet" style="@SnippetStyle(RowZone(cells, fc.GridRow))"></div>
+                }
+                <table class="grid hourly">
+                    <thead><tr><th>Hour</th>@for (var c = 1; c <= cols; c++) { <th>@c</th> }<th>Sum</th></tr></thead>
+                    <tbody>
+                        @for (var r = 1; r <= rows; r++)
+                        {
+                            var row = r;
+                            <tr>
+                                <th>@row</th>
+                                @foreach (var cell in cells.Where(x => x.GridRow == row).OrderBy(x => x.GridColumn))
+                                {
+                                    var key = (cell.FieldKey, cell.RowIndex);
+                                    <td class="@(NeedsAttention(cell) ? "attention" : "")">
+                                        <input class="cell" value="@_edits[key]" inputmode="numeric"
+                                               @onchange="@(e => _edits[key] = e.Value?.ToString())" @onfocus="@(() => _focus = cell)" />
+                                    </td>
+                                }
+                                <td class="num"><b>@RowSum(cells, row)</b></td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="@(cols + 1)" class="right">Grid total</th>
+                            <td class="num"><b>@GridTotal(cells)</b></td>
+                        </tr>
+                        @if (_detail.Values.FirstOrDefault(v => v.FieldKey == "TOTAL_PRODUCTION") is { } total)
+                        {
+                            var written = _edits[(total.FieldKey, total.RowIndex)];
+                            var match = written == GridTotal(cells);
+                            <tr>
+                                <th colspan="@(cols + 1)" class="right">Total Production written on the sheet</th>
+                                <td class="num @(match ? "ok" : "error")"><b>@written</b> @(match ? "✓" : "≠")</td>
+                            </tr>
+                        }
+                    </tfoot>
+                </table>
+            }
+
             <label class="toggle"><input type="checkbox" @bind="_showAll" /> Show all fields (otherwise only the ones that need a human)</label>
 
             @foreach (var group in Visible().GroupBy(v => v.Group ?? "Other"))
@@ -100,11 +148,38 @@ else
     private bool NeedsAttention(WorksheetValueDto v) =>
         v.Confidence < 0.9m || _detail!.Issues.Any(i => i.FieldKey == v.FieldKey && (i.RowIndex == v.RowIndex || i.RowIndex == 0 && v.RowIndex == 0));
 
-    private IEnumerable<WorksheetValueDto> Visible() => _showAll ? _detail!.Values : _detail!.Values.Where(NeedsAttention);
+    // Grid cells are edited in the grid table above; computed sums are read-only.
+    private IEnumerable<WorksheetValueDto> Visible() =>
+        _detail!.Values.Where(v => v.GridColumn == 0 && !v.IsComputed && (_showAll || NeedsAttention(v)));
+
+    private string RowSum(List<WorksheetValueDto> cells, int row) => Sum(cells.Where(c => c.GridRow == row));
+    private string GridTotal(List<WorksheetValueDto> cells) => Sum(cells);
+
+    private string Sum(IEnumerable<WorksheetValueDto> cells)
+    {
+        decimal total = 0;
+        foreach (var c in cells)
+        {
+            var text = _edits[(c.FieldKey, c.RowIndex)];
+            if (string.IsNullOrWhiteSpace(text)) continue;
+            if (!decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var n)) return "?";
+            total += n;
+        }
+        return total.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
+    private static DSI.WorkForce.Core.Templates.Zone RowZone(List<WorksheetValueDto> cells, int row)
+    {
+        var inRow = cells.Where(c => c.GridRow == row && c.Zone is not null).OrderBy(c => c.GridColumn).ToList();
+        var first = inRow[0].Zone!;
+        var last = inRow[^1].Zone!;
+        return new DSI.WorkForce.Core.Templates.Zone(first.X, first.Y, last.X + last.W - first.X, first.H);
+    }
 
     private async Task Save(bool verify)
     {
         var corrections = _detail!.Values
+            .Where(v => !v.IsComputed)
             .Where(v => !string.Equals(_edits[(v.FieldKey, v.RowIndex)] ?? "", v.Value ?? "", StringComparison.Ordinal))
             .Select(v => new ValueCorrectionDto(v.FieldKey, v.RowIndex, _edits[(v.FieldKey, v.RowIndex)]))
             .ToList();

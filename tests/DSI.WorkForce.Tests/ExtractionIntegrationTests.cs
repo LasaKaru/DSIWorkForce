@@ -26,19 +26,29 @@ public class ExtractionIntegrationTests(ITestOutputHelper output)
         }
 
         var template = TestData.PressTemplate();
-        var extractor = new FormExtractor(new ManualKeyingRecognizer(), Options.Create(new ExtractionOptions()), NullLogger<FormExtractor>.Instance);
         var pdf = await File.ReadAllBytesAsync(path);
         using var page = PdfPageRenderer.RenderPage(pdf, 0, template.Alignment.RenderDpi);
 
+        // The sample scan still has ticks in the hourly grid; the stub recognizer "reads" a 6 in every filled
+        // cell (what operators will now write) and 402 in the Total Production box.
+        var extractor = new FormExtractor(new StubRecognizer(), Options.Create(new ExtractionOptions()), NullLogger<FormExtractor>.Instance);
         var ws = await extractor.ExtractAsync(page, 1, template, MasterDataSnapshot.Empty, new DateOnly(2026, 11, 20), default);
-        foreach (var v in ws.Values.Where(v => !v.IsEmpty)) output.WriteLine(v.ToString());
+        foreach (var v in ws.Values.Where(v => !v.IsEmpty && v.FieldKey != "HOURLY_CELL")) output.WriteLine(v.ToString());
 
         Assert.True(ws.AlignmentOk);
-        var ticks = ws.GetRows("HOURLY_UNITS").Sum(v => int.Parse(v.RawText!));
-        Assert.Equal(67, ticks);                                              // counted by hand on the sample
-        Assert.Equal(402m, ws.GetRows("HOURLY_UNITS").Sum(v => v.ValueNumber)); // = Total Production box
+        var filledPerHour = Enumerable.Range(1, 8).Select(h => ws.GetRows("HOURLY_CELL").Count(c => !c.IsEmpty && template.Find("HOURLY_CELL")!.CellOf(c.RowIndex).Row == h)).ToArray();
+        Assert.Equal([8, 9, 8, 8, 9, 8, 8, 9], filledPerHour);                 // blank vs written cells, counted by hand
+        Assert.Equal([48m, 54m, 48m, 48m, 54m, 48m, 48m, 54m], ws.GetRows("HOURLY_UNITS").Select(v => v.ValueNumber!.Value));
+        Assert.DoesNotContain(ws.Issues, i => i.Code == "TOTAL_MISMATCH");     // 402 = 402
         Assert.All(ws.Values.Where(v => v.FieldKey.StartsWith("CHK_")), v => Assert.True(v.ValueBool));
         Assert.True(ws.Get("OPERATOR_SIGNED")!.ValueBool);
-        Assert.Equal(WorksheetStatus.NeedsReview, ws.Status);   // handwriting not read in manual mode
+    }
+
+    private sealed class StubRecognizer : IHandwritingRecognizer
+    {
+        public string Name => "Stub";
+        public Task<IReadOnlyList<RecognitionResult>> RecognizeAsync(OpenCvSharp.Mat alignedGray, IReadOnlyList<RecognitionRequest> requests, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<RecognitionResult>>(requests.Select(r => new RecognitionResult(r.FieldKey, r.RowIndex,
+                r.FieldKey switch { "HOURLY_CELL" => "6", "TOTAL_PRODUCTION" => "402", _ => null }, 0.93m)).ToList());
     }
 }

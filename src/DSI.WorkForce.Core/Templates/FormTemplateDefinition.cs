@@ -77,8 +77,13 @@ public sealed class FieldDefinition
 
     /// <summary>Number of rows when the zone is a table column (hourly grid, mould log). 1 = single value.</summary>
     public int Rows { get; set; } = 1;
-    /// <summary>OmrTally only: tick cells per row.</summary>
+    /// <summary>
+    /// Cells per row. &gt; 1 turns the zone into a grid (rows x columns). For Handwriting fields every cell is a
+    /// separate value stored with RowIndex = (row-1) * Columns + column. For OmrTally the cells are tick boxes.
+    /// </summary>
     public int Columns { get; set; } = 1;
+    /// <summary>Computed only: key of a grid field whose cells are summed per row.</summary>
+    public string? SumOf { get; set; }
     /// <summary>OmrTally only: units represented by one tick (default; may be overridden by Machine.UnitsPerTick).</summary>
     public decimal UnitsPerTick { get; set; } = 1;
     /// <summary>Per-field OMR threshold override (e.g. signature-present detection needs more ink).</summary>
@@ -98,6 +103,29 @@ public sealed class FieldDefinition
     public string? Hint { get; set; }
 
     public bool IsMultiRow => Rows > 1;
+
+    /// <summary>A grid of individually stored cells (e.g. the 8 x 12 hourly production numbers).</summary>
+    public bool IsGrid => Columns > 1 && Extractor is not ExtractorKind.OmrTally and not ExtractorKind.Computed;
+
+    /// <summary>RowIndex used to store cell (row, column) of a grid field; both 1-based.</summary>
+    public int CellIndex(int row, int column) => (row - 1) * Columns + column;
+
+    public (int Row, int Column) CellOf(int rowIndex) => ((rowIndex - 1) / Columns + 1, (rowIndex - 1) % Columns + 1);
+
+    /// <summary>Zone of one stored value: whole field, one row, or one grid cell.</summary>
+    public Zone ZoneOf(int rowIndex)
+    {
+        if (IsGrid && rowIndex > 0)
+        {
+            var (r, c) = CellOf(rowIndex);
+            return Zone.Row(r, Rows).Col(c, Columns);
+        }
+        return Zone.Row(rowIndex == 0 ? 1 : rowIndex, Rows);
+    }
+
+    /// <summary>All RowIndex values this field produces: 0, or 1..Rows, or 1..Rows*Columns for grids.</summary>
+    public IEnumerable<int> RowIndexes() =>
+        IsGrid ? Enumerable.Range(1, Rows * Columns) : IsMultiRow ? Enumerable.Range(1, Rows) : [0];
 }
 
 /// <summary>Cross-field business rule. Type decides which properties are used.</summary>

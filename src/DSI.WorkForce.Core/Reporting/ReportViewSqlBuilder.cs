@@ -4,19 +4,36 @@ using DSI.WorkForce.Core.Model;
 
 namespace DSI.WorkForce.Core.Reporting;
 
-/// <summary>Field metadata the builder needs: database id + type (to pick ValueNumber / ValueText / ...).</summary>
-public sealed record FieldInfo(int FieldId, string FieldKey, FieldDataType DataType);
+/// <summary>
+/// Field metadata the builder needs: database id, type (to pick ValueNumber / ValueText / ...) and shape.
+/// Rows &gt; 1 = table column (one value per row); Columns &gt; 1 = grid (one value per cell).
+/// </summary>
+public sealed record FieldInfo(int FieldId, string FieldKey, FieldDataType DataType, int Rows = 1, int Columns = 1)
+{
+    public bool IsGrid => Columns > 1;
+}
+
+public sealed record ReportSql(string ViewSql, string FunctionSql);
 
 /// <summary>
-/// Generates "CREATE OR ALTER VIEW rpt.vw_X" from a <see cref="ReportDefinition"/>.
+/// Generates "CREATE OR ALTER VIEW rpt.vw_X" (+ a date-range function) from a <see cref="ReportDefinition"/>.
 /// This is what makes the Excel layout configurable: add a row to rpt.ReportColumn, rebuild, done.
+///
+/// Two shapes:
+///  * per sheet (default): one output row per scanned worksheet;
+///  * per row (<see cref="ReportDefinition.RowField"/> set, e.g. HOURLY_UNITS): one output row per table row of the
+///    form (= per hour), and column sources are relative to that row, e.g. "HOURLY_CELL cell 3" = 3rd cell of this hour.
+///
 /// Everything that ends up in SQL is either whitelisted, an integer, or a bracket-escaped identifier,
 /// so admin-entered metadata cannot inject SQL.
 /// </summary>
-public sealed record ReportSql(string ViewSql, string FunctionSql);
-
 public static partial class ReportViewSqlBuilder
 {
+    /// <summary>Name of the always-present column linking a report row back to its scanned sheet.</summary>
+    public const string SheetIdColumn = "Sheet ID";
+    /// <summary>Per-row reports also get the row (hour) number, used for sorting.</summary>
+    public const string RowNoColumn = "Row No";
+
     private static readonly Dictionary<string, string> HeaderColumns = new(StringComparer.OrdinalIgnoreCase)
     {
         ["WorksheetId"] = "w.WorksheetId",
@@ -33,6 +50,7 @@ public static partial class ReportViewSqlBuilder
         ["VerifiedBy"] = "w.VerifiedBy",
         ["VerifiedAt"] = "w.VerifiedAt",
         ["SourceFile"] = "sf.FileName",
+        ["RowNo"] = "r.n",   // per-row reports only: hour number 1..8
     };
 
     /// <summary>Lookup -> (join alias, SQL expression). Joins are only emitted when used.</summary>
@@ -49,7 +67,12 @@ public static partial class ReportViewSqlBuilder
         ["Shift.StartTime"] = ("sh", "sh.StartTime"),
         ["Shift.EndTime"] = ("sh", "sh.EndTime"),
         ["Shift.Hours"] = ("sh", "sh.Hours"),
+        // per-row reports only: start / end of this hour row (shift start + row - 1)
+        ["Shift.HourStart"] = ("sh", "DATEADD(HOUR, r.n - 1, sh.StartTime)"),
+        ["Shift.HourEnd"] = ("sh", "DATEADD(HOUR, r.n, sh.StartTime)"),
     };
+
+    private static readonly HashSet<string> PerRowOnly = new(StringComparer.OrdinalIgnoreCase) { "RowNo", "Shift.HourStart", "Shift.HourEnd" };
 
     private static readonly Dictionary<string, string> Joins = new()
     {
@@ -66,6 +89,8 @@ public static partial class ReportViewSqlBuilder
         "AND", "OR", "NOT", "NULL", "IS", "CAST", "AS", "DECIMAL", "INT", "FLOAT",
     };
 
+    private static readonly string[] Aggregates = ["SUM", "MIN", "MAX", "AVG", "COUNT", "LIST"];
+
     public static IReadOnlyCollection<string> AvailableHeaderColumns => HeaderColumns.Keys;
     public static IReadOnlyCollection<string> AvailableLookups => Lookups.Keys;
 
@@ -73,6 +98,10 @@ public static partial class ReportViewSqlBuilder
     {
         var errors = new List<string>();
         if (!IdentifierRegex().IsMatch(report.Code)) errors.Add($"Report code '{report.Code}' must be letters/digits/underscore.");
+        var perRow = report.RowField is not null;
+        if (perRow && (!fields.TryGetValue(report.RowField!, out var rf) || rf.Rows < 2))
+            errors.Add($"Row field '{report.RowField}' must be a table field with several rows (e.g. HOURLY_UNITS).");
+
         var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var headers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var c in report.Columns)
@@ -82,7 +111,10 @@ public static partial class ReportViewSqlBuilder
             else if (!keys.Add(c.Key)) errors.Add($"{label}: duplicate key '{c.Key}'.");
             if (string.IsNullOrWhiteSpace(c.Header) || c.Header.Length > 128) errors.Add($"{label}: header is required (max 128 chars).");
             else if (c.Visible && !headers.Add(c.Header)) errors.Add($"{label}: duplicate header.");
-            if (string.Equals(c.Header, SheetIdColumn, StringComparison.OrdinalIgnoreCase)) errors.Add($"{label}: '{SheetIdColumn}' is reserved.");
+            if (string.Equals(c.Header, SheetIdColumn, StringComparison.OrdinalIgnoreCase) || string.Equals(c.Header, RowNoColumn, StringComparison.OrdinalIgnoreCase))
+                errors.Add($"{label}: '{c.Header}' is reserved.");
+            if (!perRow && c.Source is not null && PerRowOnly.Contains(c.Source))
+                errors.Add($"{label}: '{c.Source}' only works in a per-row report (set the row field).");
 
             switch (c.SourceType)
             {
@@ -92,19 +124,25 @@ public static partial class ReportViewSqlBuilder
                     errors.Add($"{label}: lookup must be one of {string.Join(", ", Lookups.Keys)}."); break;
                 case ReportSourceType.Field or ReportSourceType.FieldAggregate when c.Source is null || !fields.ContainsKey(c.Source):
                     errors.Add($"{label}: unknown field '{c.Source}'."); break;
-                case ReportSourceType.FieldAggregate when c.Aggregate is null || !new[] { "SUM", "MIN", "MAX", "AVG", "COUNT", "LIST" }.Contains(c.Aggregate.ToUpperInvariant()):
+                case ReportSourceType.FieldAggregate when c.Aggregate is null || !Aggregates.Contains(c.Aggregate.ToUpperInvariant()):
                     errors.Add($"{label}: aggregate must be SUM, MIN, MAX, AVG, COUNT or LIST."); break;
-                case ReportSourceType.Field when c.RowIndex is < 0 or > 255:
-                    errors.Add($"{label}: rowIndex must be 0..255."); break;
                 case ReportSourceType.Expression:
                     errors.AddRange(ValidateExpression(c, report).Select(e => $"{label}: {e}")); break;
+            }
+
+            if (c.SourceType is ReportSourceType.Field or ReportSourceType.FieldAggregate && c.Source is not null && fields.TryGetValue(c.Source, out var f))
+            {
+                if (c.RowIndex is < 0 or > 255) errors.Add($"{label}: row must be 0..255.");
+                if (c.Cell is not null && (!f.IsGrid || c.Cell < 1 || c.Cell > f.Columns))
+                    errors.Add($"{label}: cell must be 1..{f.Columns} and only applies to grid fields.");
+                if (c.SourceType == ReportSourceType.Field && f.IsGrid && c.Cell is null)
+                    errors.Add($"{label}: '{f.FieldKey}' is a grid - choose a cell (1..{f.Columns}).");
+                if (c.SourceType == ReportSourceType.Field && !perRow && f.Rows > 1 && c.RowIndex is null)
+                    errors.Add($"{label}: '{f.FieldKey}' has {f.Rows} rows - choose a row (or make the report per-row).");
             }
         }
         return errors;
     }
-
-    /// <summary>Name of the always-present last column linking a report row back to its scanned sheet.</summary>
-    public const string SheetIdColumn = "Sheet ID";
 
     /// <summary>
     /// Builds the view (for SSMS / Excel Power Query / Power BI) and an inline table-valued function
@@ -125,10 +163,13 @@ public static partial class ReportViewSqlBuilder
 
     private static string BuildSelect(ReportDefinition report, IReadOnlyDictionary<string, FieldInfo> fields, bool dateFiltered)
     {
+        var perRow = report.RowField is not null;
         var cols = report.Columns.OrderBy(c => c.Order).ToList();
         var usedJoins = new SortedSet<string>(StringComparer.Ordinal);
         var groupBy = new List<string> { "w.WorksheetId" };
         var baseSelect = new List<string> { "w.WorksheetId AS [__WorksheetId]" };
+        var rowConditions = new List<string>();   // per-row: "does this hour row contain anything?"
+        if (perRow) { groupBy.Add("r.n"); baseSelect.Add("r.n AS [__RowNo]"); }
 
         foreach (var c in cols.Where(c => c.SourceType != ReportSourceType.Expression))
         {
@@ -143,13 +184,16 @@ public static partial class ReportViewSqlBuilder
                     if (!groupBy.Contains(sql)) groupBy.Add(sql);
                     break;
                 case ReportSourceType.Lookup:
-                    sql = LookupExpr(c.Source!, usedJoins);
-                    break;
-                case ReportSourceType.Field:
-                    sql = FieldExpr(fields[c.Source!], c.RowIndex ?? 0);
+                    var (alias, lookupSql) = Lookups[c.Source!];
+                    usedJoins.Add(alias);
+                    sql = $"MAX({lookupSql})";
                     break;
                 default:
-                    sql = AggregateExpr(fields[c.Source!], c.Aggregate!.ToUpperInvariant());
+                    var f = fields[c.Source!];
+                    var aggregate = c.SourceType == ReportSourceType.FieldAggregate;
+                    var cond = $"v.FieldId = {f.FieldId}" + RowCondition(f, c, perRow, aggregate);
+                    sql = aggregate ? AggregateExpr(f, c.Aggregate!.ToUpperInvariant(), cond) : FieldExpr(f, cond);
+                    if (perRow && (f.Rows > 1 || f.IsGrid) && c.RowIndex is null) rowConditions.Add($"({cond})");
                     break;
             }
             baseSelect.Add($"{sql} AS {Q(c.Key)}");
@@ -159,6 +203,7 @@ public static partial class ReportViewSqlBuilder
             ? $"{RewriteExpression(c.Expression!)} AS {Q(c.Header)}"
             : $"b.{Q(c.Key)} AS {Q(c.Header)}").ToList();
         finalSelect.Add($"b.[__WorksheetId] AS {Q(SheetIdColumn)}");
+        if (perRow) finalSelect.Add($"b.[__RowNo] AS {Q(RowNoColumn)}");
 
         var where = new List<string>
         {
@@ -173,10 +218,17 @@ public static partial class ReportViewSqlBuilder
         sb.AppendLine("    SELECT");
         sb.AppendLine("        " + string.Join(",\n        ", baseSelect));
         sb.AppendLine("    FROM dsi.Worksheet w");
+        if (perRow)
+        {
+            var n = fields[report.RowField!].Rows;
+            sb.AppendLine($"    CROSS JOIN (VALUES {string.Join(", ", Enumerable.Range(1, n).Select(i => $"({i})"))}) AS r(n)");
+        }
         sb.AppendLine("    LEFT JOIN dsi.WorksheetValue v ON v.WorksheetId = w.WorksheetId");
         foreach (var j in usedJoins) sb.AppendLine("    " + Joins[j]);
         sb.AppendLine("    WHERE " + string.Join("\n      AND ", where));
         sb.AppendLine("    GROUP BY " + string.Join(", ", groupBy));
+        if (perRow && rowConditions.Count > 0)   // skip empty hour rows
+            sb.AppendLine("    HAVING COUNT(CASE WHEN " + string.Join(" OR ", rowConditions.Distinct()) + " THEN 1 END) > 0");
         sb.AppendLine(")");
         sb.AppendLine("SELECT");
         sb.AppendLine("    " + string.Join(",\n    ", finalSelect));
@@ -184,11 +236,22 @@ public static partial class ReportViewSqlBuilder
         return sb.ToString();
     }
 
-    private static string LookupExpr(string source, ISet<string> joins)
+    /// <summary>
+    /// Which stored RowIndex values a column reads. In per-row reports "the current row" is r.n;
+    /// grid cells are stored at (row - 1) * columns + cell.
+    /// </summary>
+    private static string RowCondition(FieldInfo f, ReportColumnDefinition c, bool perRow, bool aggregate)
     {
-        var (alias, sql) = Lookups[source];
-        joins.Add(alias);
-        return $"MAX({sql})";
+        string? row = c.RowIndex is { } fixedRow ? fixedRow.ToString() : perRow && f.Rows > 1 ? "r.n" : f.Rows > 1 ? null : "0";
+        if (f.IsGrid)
+        {
+            if (row is null) return "";   // aggregate over the whole grid
+            return c.Cell is { } cell
+                ? $" AND v.RowIndex = ({row} - 1) * {f.Columns} + {cell}"
+                : $" AND v.RowIndex BETWEEN ({row} - 1) * {f.Columns} + 1 AND {row} * {f.Columns}";
+        }
+        if (row is null) return aggregate ? "" : " AND v.RowIndex = 0";
+        return $" AND v.RowIndex = {row}";
     }
 
     private static string ValueColumn(FieldDataType t) => t switch
@@ -199,16 +262,15 @@ public static partial class ReportViewSqlBuilder
         _ => "v.ValueText",
     };
 
-    private static string FieldExpr(FieldInfo f, int row)
+    private static string FieldExpr(FieldInfo f, string cond)
     {
-        var expr = $"MAX(CASE WHEN v.FieldId = {f.FieldId} AND v.RowIndex = {row} THEN {ValueColumn(f.DataType)} END)";
+        var expr = $"MAX(CASE WHEN {cond} THEN {ValueColumn(f.DataType)} END)";
         return f.DataType == FieldDataType.Checkbox ? $"CAST({expr} AS BIT)" : expr;
     }
 
-    private static string AggregateExpr(FieldInfo f, string agg)
+    private static string AggregateExpr(FieldInfo f, string agg, string cond)
     {
         var col = ValueColumn(f.DataType);
-        var cond = $"v.FieldId = {f.FieldId}";
         return agg switch
         {
             "LIST" => $"STRING_AGG(CASE WHEN {cond} THEN NULLIF(LTRIM(RTRIM(v.ValueText)), N'') END, N'; ') WITHIN GROUP (ORDER BY v.RowIndex)",

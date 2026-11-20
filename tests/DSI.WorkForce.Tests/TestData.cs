@@ -11,9 +11,16 @@ internal static class TestData
     public static FormTemplateDefinition PressTemplate() =>
         TemplateSerializer.Deserialize(File.ReadAllText(Path.Combine(TemplatesDir, "forms", "PC-011-A.v1.json")));
 
-    public static ReportDefinition DailyEfficiency() =>
-        JsonSerializer.Deserialize<ReportDefinition>(File.ReadAllText(Path.Combine(TemplatesDir, "reports", "DailyEfficiency.json")), TemplateSerializer.Options)!;
+    public static ReportDefinition DailyEfficiency() => Report("DailyEfficiency");
 
+    public static ReportDefinition Report(string code) =>
+        JsonSerializer.Deserialize<ReportDefinition>(File.ReadAllText(Path.Combine(TemplatesDir, "reports", code + ".json")), TemplateSerializer.Options)!;
+
+    public static IEnumerable<string> ReportCodes() =>
+        Directory.EnumerateFiles(Path.Combine(TemplatesDir, "reports"), "*.json").Select(Path.GetFileNameWithoutExtension)!;
+
+    /// <summary>Same shape as TemplateRepository.GetFieldMapAsync returns from dsi.FieldDefinition.</summary>
     public static IReadOnlyDictionary<string, FieldInfo> FieldMap(FormTemplateDefinition t) =>
-        t.Fields.Select((f, i) => new FieldInfo(i + 1, f.Key, f.Type)).ToDictionary(f => f.FieldKey, StringComparer.OrdinalIgnoreCase);
+        t.Fields.Select((f, i) => new FieldInfo(i + 1, f.Key, f.Type, f.Rows, f.IsGrid ? f.Columns : 1))
+            .ToDictionary(f => f.FieldKey, StringComparer.OrdinalIgnoreCase);
 }

@@ -24,9 +24,9 @@ public sealed class TemplateRepository(IDbConnectionFactory db)
             await conn.ExecuteAsync(new CommandDefinition("""
                 MERGE dsi.FieldDefinition AS tgt
                 USING (SELECT @Key AS FieldKey) AS src ON tgt.FieldKey = src.FieldKey
-                WHEN MATCHED THEN UPDATE SET Label = @Label, DataType = @DataType, GroupName = @GroupName, IsActive = 1
-                WHEN NOT MATCHED THEN INSERT (FieldKey, Label, DataType, GroupName) VALUES (@Key, @Label, @DataType, @GroupName);
-                """, new { f.Key, f.Label, DataType = f.Type.ToString(), GroupName = f.Group }, tx, cancellationToken: ct));
+                WHEN MATCHED THEN UPDATE SET Label = @Label, DataType = @DataType, GroupName = @GroupName, GridRows = @Rows, GridColumns = @Columns, IsActive = 1
+                WHEN NOT MATCHED THEN INSERT (FieldKey, Label, DataType, GroupName, GridRows, GridColumns) VALUES (@Key, @Label, @DataType, @GroupName, @Rows, @Columns);
+                """, new { f.Key, f.Label, DataType = f.Type.ToString(), GroupName = f.Group, f.Rows, Columns = f.IsGrid ? f.Columns : 1 }, tx, cancellationToken: ct));
         }
 
         await tx.CommitAsync(ct);
@@ -58,9 +58,9 @@ public sealed class TemplateRepository(IDbConnectionFactory db)
     public async Task<IReadOnlyDictionary<string, FieldInfo>> GetFieldMapAsync(CancellationToken ct = default)
     {
         await using var conn = await db.OpenAsync(ct);
-        var rows = await conn.QueryAsync<(int FieldId, string FieldKey, string DataType)>(new CommandDefinition(
-            "SELECT FieldId, FieldKey, DataType FROM dsi.FieldDefinition", cancellationToken: ct));
+        var rows = await conn.QueryAsync<(int FieldId, string FieldKey, string DataType, int GridRows, int GridColumns)>(new CommandDefinition(
+            "SELECT FieldId, FieldKey, DataType, GridRows, GridColumns FROM dsi.FieldDefinition", cancellationToken: ct));
         return rows.ToDictionary(r => r.FieldKey,
-            r => new FieldInfo(r.FieldId, r.FieldKey, Enum.Parse<FieldDataType>(r.DataType)), StringComparer.OrdinalIgnoreCase);
+            r => new FieldInfo(r.FieldId, r.FieldKey, Enum.Parse<FieldDataType>(r.DataType), r.GridRows, r.GridColumns), StringComparer.OrdinalIgnoreCase);
     }
 }

@@ -22,6 +22,8 @@ public enum ExtractorKind
     Handwriting = 2,
     /// <summary>Never auto-read; always typed by a reviewer (image snippet is still shown).</summary>
     Manual = 3,
+    /// <summary>Not read from the page: calculated from other fields (e.g. hourly units = sum of the 12 cells of that hour).</summary>
+    Computed = 4,
 }
 
 public enum WorksheetStatus

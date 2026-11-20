@@ -6,7 +6,7 @@
 |---|---|
 | 5,000+ sheets/day, **never crash / freeze** | OCR never runs in a UI or web request. A headless Windows Service processes a durable SQL queue in small leased batches with bounded parallelism; one bad page can't stop the service. |
 | Nothing lost, nothing twice | SHA-256 de-duplication on ingest; copy → enqueue → delete ordering; one DB transaction per page; `UNIQUE (ScanFileId, PageNo)` makes retries idempotent; expired leases are picked up again automatically. |
-| Accurate without a big AI | Template alignment + **OMR** (pixel density) for ticks and the hourly tally grid; handwriting only where needed; master-data matching and cross-field rules (`ticks × 6 = Total`) catch OCR mistakes. |
+| Accurate without a big AI | Template alignment + **OMR** (pixel density) for tick boxes; blank-cell detection so handwriting is read only where something is written; master-data matching and cross-field rules (`ticks × 6 = Total`) catch OCR mistakes. |
 | Humans only see exceptions | Confidence per value + business rules → `AutoApproved` or `NeedsReview`. The review screen shows only the cells that need attention, next to the image snippet. |
 | "Looks like Excel", also in the DB | Report definitions are metadata; the app generates `rpt.vw_<Report>` (Excel layout) and `rpt.fn_<Report>(@From,@To)`. |
 | Easy to add columns | New Excel column = metadata row. New box on the paper = template JSON. No schema change, no recompile. |
@@ -19,10 +19,10 @@
    Every field zone is a fraction (0..1) of that canvas, so scanner DPI, skew and small rotations don't matter.
 3. **OMR**: adaptive threshold → ink ratio per box.
    * Check-list boxes and signatures: marked / empty / uncertain.
-   * Hourly grid: 8 rows × 12 tick cells → `ticks × UnitsPerTick` per hour.
+   * (Optional `OmrTally` extractor for forms where operators tick cells instead of writing numbers.)
 4. **Blank detection**: for handwriting boxes, printed table lines are removed (morphology) and the remaining ink
    is measured. Empty boxes are stored as "confidently empty" and never sent to OCR or to a human.
-5. **Handwriting** (only non-empty boxes) via `IHandwritingRecognizer`:
+5. **Handwriting** (only non-empty boxes, including each filled cell of the 8 × 12 hourly grid) via `IHandwritingRecognizer`:
    * `None`: manual keying in the review screen (start here; still saves ~75% of typing).
    * `AzureDocumentIntelligence`: one call per sheet, words mapped to zones, real per-word confidence.
    * `Ollama`: local vision-language model (e.g. Qwen2.5-VL 7B on one GPU). All snippets of a sheet go into
@@ -30,7 +30,9 @@
 6. **Normalize**: types, date formats (`yy/M/d` as written on the form), digit confusions, allowed values (shift).
 7. **Master data**: EPF must exist (and resemble the written name), press snaps to `dsi.Machine`, tyre text is
    fuzzy-matched to `dsi.Item` (+ learned aliases from reviewer corrections), standard rate comes along.
-8. **Rules**: required fields, ranges, `TallyMatchesTotal` (agreement boosts confidence of both).
+8. **Computed fields + rules**: hourly units = sum of the row's cells (`Computed`, recalculated after every manual
+   correction); required fields, ranges, `SumMatchesTotal` (grid total = *Total Production* box; agreement boosts
+   the confidence of the total, the hourly sums and every cell).
 9. **Save**: header + values (SqlBulkCopy) + issues in one transaction; aligned JPEG saved for review.
 
 ## Data model (SQL Server)
@@ -39,6 +41,7 @@
 dsi.ScanFile          1 row per PDF          queue: Pending → Processing → Completed / Failed (lease, attempts, back-off)
 dsi.Worksheet         1 row per page         promoted + indexed: WorkDate, Shift, ResourceNo, EpfNo, ItemCode, Status
 dsi.WorksheetValue    1 row per filled cell  (WorksheetId, FieldId, RowIndex) → typed value + raw OCR text + confidence
+                                             grid cells: RowIndex = (hour - 1) * 12 + cell
 dsi.FieldDefinition   field dictionary       EPF_NO, HOURLY_UNITS, CHK_PRV_UNIT ... (shared by all template versions)
 dsi.FormTemplate      layout JSON            PC-011-A v1, v2 ...
 dsi.ValidationIssue   why a sheet needs review
@@ -57,9 +60,15 @@ returning exactly the Excel columns, and adding a column is a metadata change.
 Frequently filtered values are promoted into indexed columns on `dsi.Worksheet`, and the view groups on them,
 so filters like `WHERE [Date] = ...` use the index.
 
-Volume: ~50 stored values per sheet (blank cells are not stored) × 5,000 = ~250k rows/day, ~90M rows/year.
+Volume: ~120 stored values per sheet (blank cells are not stored) × 5,000 = ~600k rows/day, ~220M rows/year.
 That is comfortable for SQL Server with the clustered key `(WorksheetId, FieldId, RowIndex)` and page compression
-(roughly 3–6 GB/year).
+(roughly 8–15 GB/year; archive or partition by year if wanted).
+
+## Report shapes
+* **Per sheet** (e.g. *Shift Summary*): `GROUP BY WorksheetId`.
+* **Per row** (e.g. *Daily Efficiency*, `rowField: HOURLY_UNITS`): the worksheet is cross-joined with the hour numbers
+  1..8, so each hour becomes a report row; "cell 3" means `RowIndex = (hour - 1) * 12 + 3`, and `Shift.HourStart`
+  = shift start + hour − 1. Empty hours are skipped.
 
 ## Why a SQL table as the queue (and not RabbitMQ/Hangfire)?
 At ~5,000 files/day (a few per minute) SQL Server is more than enough, it is already backed up, and there's

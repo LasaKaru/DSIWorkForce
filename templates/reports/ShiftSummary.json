@@ -1,0 +1,216 @@
+{
+  "$comment": "One row per scanned worksheet: hourly totals, shift efficiency, target achievement. Edit in Admin > Report columns.",
+  "code": "ShiftSummary",
+  "title": "Shift Summary",
+  "subtitle": "One row per worksheet (operator / press / shift)",
+  "templateCodes": [
+    "PC-011-A"
+  ],
+  "onlyApproved": false,
+  "columns": [
+    {
+      "order": 10,
+      "key": "ResourceNo",
+      "header": "Resource No",
+      "sourceType": "Header",
+      "source": "ResourceNo"
+    },
+    {
+      "order": 20,
+      "key": "ItemCode",
+      "header": "Item Code",
+      "sourceType": "Header",
+      "source": "ItemCode"
+    },
+    {
+      "order": 30,
+      "key": "ItemDescription",
+      "header": "Item Description",
+      "sourceType": "Field",
+      "source": "ITEM_DESCRIPTION"
+    },
+    {
+      "order": 40,
+      "key": "EpfNo",
+      "header": "EPF No",
+      "sourceType": "Header",
+      "source": "EpfNo"
+    },
+    {
+      "order": 50,
+      "key": "OperatorName",
+      "header": "Operator",
+      "sourceType": "Lookup",
+      "source": "Employee.Name"
+    },
+    {
+      "order": 60,
+      "key": "WorkDate",
+      "header": "Date",
+      "sourceType": "Header",
+      "source": "WorkDate",
+      "format": "dd/MM/yyyy"
+    },
+    {
+      "order": 70,
+      "key": "Shift",
+      "header": "Shift",
+      "sourceType": "Header",
+      "source": "Shift"
+    },
+    {
+      "order": 80,
+      "key": "H1",
+      "header": "Hour 1",
+      "sourceType": "Field",
+      "source": "HOURLY_UNITS",
+      "rowIndex": 1,
+      "format": "#,##0"
+    },
+    {
+      "order": 90,
+      "key": "H2",
+      "header": "Hour 2",
+      "sourceType": "Field",
+      "source": "HOURLY_UNITS",
+      "rowIndex": 2,
+      "format": "#,##0"
+    },
+    {
+      "order": 100,
+      "key": "H3",
+      "header": "Hour 3",
+      "sourceType": "Field",
+      "source": "HOURLY_UNITS",
+      "rowIndex": 3,
+      "format": "#,##0"
+    },
+    {
+      "order": 110,
+      "key": "H4",
+      "header": "Hour 4",
+      "sourceType": "Field",
+      "source": "HOURLY_UNITS",
+      "rowIndex": 4,
+      "format": "#,##0"
+    },
+    {
+      "order": 120,
+      "key": "H5",
+      "header": "Hour 5",
+      "sourceType": "Field",
+      "source": "HOURLY_UNITS",
+      "rowIndex": 5,
+      "format": "#,##0"
+    },
+    {
+      "order": 130,
+      "key": "H6",
+      "header": "Hour 6",
+      "sourceType": "Field",
+      "source": "HOURLY_UNITS",
+      "rowIndex": 6,
+      "format": "#,##0"
+    },
+    {
+      "order": 140,
+      "key": "H7",
+      "header": "Hour 7",
+      "sourceType": "Field",
+      "source": "HOURLY_UNITS",
+      "rowIndex": 7,
+      "format": "#,##0"
+    },
+    {
+      "order": 150,
+      "key": "H8",
+      "header": "Hour 8",
+      "sourceType": "Field",
+      "source": "HOURLY_UNITS",
+      "rowIndex": 8,
+      "format": "#,##0"
+    },
+    {
+      "order": 160,
+      "key": "Units",
+      "header": "Units produced",
+      "sourceType": "FieldAggregate",
+      "source": "HOURLY_UNITS",
+      "aggregate": "SUM",
+      "format": "#,##0"
+    },
+    {
+      "order": 170,
+      "key": "TotalWritten",
+      "header": "Total Production (sheet)",
+      "sourceType": "Field",
+      "source": "TOTAL_PRODUCTION",
+      "format": "#,##0"
+    },
+    {
+      "order": 180,
+      "key": "Rejection",
+      "header": "Rejection",
+      "sourceType": "FieldAggregate",
+      "source": "HOURLY_REJECTION",
+      "aggregate": "SUM",
+      "format": "#,##0"
+    },
+    {
+      "order": 190,
+      "key": "TargetQty",
+      "header": "Target",
+      "sourceType": "Field",
+      "source": "TARGET_QTY",
+      "format": "#,##0"
+    },
+    {
+      "order": 200,
+      "key": "StdRate",
+      "header": "Standard Rate per Hour",
+      "sourceType": "Lookup",
+      "source": "Item.StandardRatePerHour",
+      "format": "#,##0.00"
+    },
+    {
+      "order": 210,
+      "key": "HoursWorked",
+      "header": "Hours Worked",
+      "sourceType": "FieldAggregate",
+      "source": "HOURLY_UNITS",
+      "aggregate": "COUNT",
+      "visible": false
+    },
+    {
+      "order": 220,
+      "key": "Efficiency",
+      "header": "Efficiency",
+      "sourceType": "Expression",
+      "expression": "{Units} / NULLIF({StdRate} * {HoursWorked}, 0)",
+      "format": "0.00%"
+    },
+    {
+      "order": 230,
+      "key": "TargetPct",
+      "header": "Target achieved",
+      "sourceType": "Expression",
+      "expression": "{Units} / NULLIF({TargetQty}, 0)",
+      "format": "0.0%"
+    },
+    {
+      "order": 240,
+      "key": "Reasons",
+      "header": "Reasons",
+      "sourceType": "FieldAggregate",
+      "source": "HOURLY_REASON",
+      "aggregate": "LIST"
+    },
+    {
+      "order": 250,
+      "key": "Status",
+      "header": "Status",
+      "sourceType": "Header",
+      "source": "Status"
+    }
+  ]
+}

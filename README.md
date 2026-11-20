@@ -24,7 +24,7 @@ flowchart LR
 |---|---|
 | `src/DSI.WorkForce.Core` | Pure business logic: form template model, value cleaning (`26/11/17` → 17-Nov-2026, `S2I4` → 5214), fuzzy matching to master data, validation rules, **report → SQL view generator**. |
 | `src/DSI.WorkForce.Data` | SQL Server schema (DbUp migration scripts), Dapper repositories, SQL-table work queue. |
-| `src/DSI.WorkForce.Extraction` | PDF → image (PDFium), page alignment (OpenCV), **tick-box / tally OMR**, pluggable handwriting recognizers (manual, Azure AI Document Intelligence, local Ollama VLM). |
+| `src/DSI.WorkForce.Extraction` | PDF → image (PDFium), page alignment (OpenCV), **tick-box OMR**, per-cell blank detection, pluggable handwriting recognizers (manual, Azure AI Document Intelligence, local Ollama VLM). |
 | `src/DSI.WorkForce.Worker` | Windows Service: watches scanner hot folders, processes the queue in parallel, plus a `--calibrate` tool. |
 | `src/DSI.WorkForce.Web` | ASP.NET Core 8 Blazor Server: dashboard, split-screen review, Excel-like reports + Excel export, report-column admin, upload, JSON API. Windows (AD) login. |
 | `src/DSI.WorkForce.Desktop` | WPF (.NET 8) client: scan station (auto-upload a scanner folder), review screen, Excel-like report grid. Uses the web API. |
@@ -38,12 +38,15 @@ flowchart LR
 Measured by the integration test and the calibration tool on the real scan:
 
 * Page alignment: OK (found the printed border, straightened to the template).
-* **Hourly production grid:** 67 ticks were counted correctly row by row: 8, 9, 8, 8, 9, 8, 8, 9.
-  × 6 tyres per tick = **402**, which equals the handwritten *Total Production* box. The two readings
-  cross-check each other automatically.
+* **Hourly production grid (8 hours × 12 cells, a handwritten number in each cell):** every cell is located
+  individually and blank cells are skipped. On the sample, exactly the right cells were found filled in each hour:
+  8, 9, 8, 8, 9, 8, 8, 9 (67 cells). Hourly units = sum of the row; the sum of all cells is checked against the
+  handwritten *Total Production* box (e.g. 67 × 6 = **402**). When the two agree, both are trusted automatically.
 * All **14 machine-checklist ticks** and both **signatures** were detected (OMR, 99%).
-* Every empty box was recognized as empty. Only the **24 boxes that really contain handwriting** (date, press,
-  EPF, shift, target, name, tyre, mould log, specs, 3 reasons, total) go to a recognizer or to a human.
+* Every empty box was recognized as empty. Only boxes that really contain handwriting go to a recognizer or to
+  a human: on the sample, 67 hourly cells + 24 other boxes (date, press, EPF, shift, target, name, tyre, mould
+  log, specs, 3 reasons, total).
+* The orange column (නිසැදු වාර ගණන) is captured as **Rejection** per hour and shown as a report column.
 
 ## Quick start (developer PC, Windows)
 
@@ -66,7 +69,7 @@ dotnet run --project src/DSI.WorkForce.Web
 # 6. Desktop app: open DSIWorkForce.sln in Visual Studio 2022, start DSI.WorkForce.Desktop
 ```
 
-Tests: `dotnet test tests/DSI.WorkForce.Tests` (45 tests: normalization, matching, OMR, rules, report SQL,
+Tests: `dotnet test tests/DSI.WorkForce.Tests` (49 tests: normalization, matching, OMR, rules, report SQL,
 and **T-SQL syntax of every script and query**, checked with Microsoft's ScriptDom parser).
 Set `DSI_SAMPLE_PDF=C:\path\scan.pdf` to also run the real-scan integration test.
 Scans are not committed because they contain employee data.
@@ -81,9 +84,9 @@ Scans are not committed because they contain employee data.
 
 ## Things to confirm with production
 
-* **Units per tick = 6** (template default; set per press in `dsi.Machine.UnitsPerTick`). On the sample sheet
-  67 ticks × 6 = 402 = Total Production, so a tick looks like one press cycle of 6 cavities.
-* **Efficiency formula.** The Excel sample computes `Units ÷ Standard rate per hour` (=V/W). This system defaults to
-  `Units ÷ (Standard rate per hour × hours with production)`. It is one editable expression in *Report columns*.
+* **Report shape.** *Daily Efficiency* has **one row per hour** (as in the Excel): columns `1..12` are the 12 cells
+  of that hour, Start/End time = that hour, Efficiency = units ÷ standard rate per hour (=V/W).
+  *Shift Summary* has one row per sheet (hours 1–8, totals, shift efficiency, target %).
+* **Standard rate per hour** comes from `dsi.Item.StandardRatePerHour` (the Excel had `=52/2`).
 * Checklist meaning: a tick is stored as `1`. The form cannot tell "checked OK" from "checked, problem found"
   (see the form-redesign doc).

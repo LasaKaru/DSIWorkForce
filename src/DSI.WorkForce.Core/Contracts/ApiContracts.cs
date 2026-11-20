@@ -17,7 +17,10 @@ public sealed record WorksheetSummaryDto(
 public sealed record WorksheetValueDto(
     string FieldKey, int RowIndex, string Label, string? Group, string DataType,
     string? RawText, string? Value, decimal Confidence, string Source, bool IsCorrected,
-    Zone? Zone);
+    Zone? Zone,
+    int GridRow = 0,          // grid cells: hour row (1..8)
+    int GridColumn = 0,       // grid cells: cell in that row (1..12); 0 = not a grid cell
+    bool IsComputed = false); // calculated (e.g. hourly sum) - read-only
 
 public sealed record ValidationIssueDto(string? FieldKey, int RowIndex, string Severity, string Code, string Message);
 

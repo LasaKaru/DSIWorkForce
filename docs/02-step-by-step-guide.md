@@ -8,10 +8,12 @@ A realistic order to go from paper to production. Each step is useful on its own
 
    | Option | Cost | Accuracy on handwriting | Notes |
    |---|---|---|---|
-   | `None` (manual keying) | free | n/a (human types) | Start here. OMR still reads all ticks + hourly grid automatically; only ~24 boxes/sheet are typed, beside the image. |
+   | `None` (manual keying) | free | n/a (human types) | Start here for the pilot. Tick boxes are read automatically and empty boxes are skipped, but every **filled hourly cell** (~60–90 per sheet) plus ~24 other boxes must be typed (fast 8 × 12 entry grid with live row sums). Not practical for 5,000 sheets/day long-term. |
    | `AzureDocumentIntelligence` | per page (cloud) | very good for digits/Latin text | ~150k pages/month at 5,000/day, so check current Azure pricing. Needs internet from the worker server. |
    | `Ollama` (local VLM, e.g. `qwen2.5vl:7b`) | one GPU PC (e.g. RTX 4060 Ti 16 GB / 4090) | good, and improves with newer models | Fully on-premise. One call per sheet. |
 
+   Because every hourly cell now holds a handwritten number, a recognizer is needed for full volume. Single digits
+   in boxed cells are the easiest kind of handwriting, and the *Total Production* cross-check catches misreads.
    Sinhala handwriting (the *reason* column) is the hardest for every engine, which is why the form-redesign doc
    suggests reason **codes** as tick boxes.
 2. **Where it runs**: one Windows Server VM (4–8 cores, 16 GB RAM) for Worker + Web is enough for 5,000 sheets/day.
@@ -28,7 +30,7 @@ Re-run it after every upgrade (scripts run only once; see `dbo.SchemaVersions`).
 
 ## Step 2: Load master data
 
-Fill `dsi.Employee` (EPF No, Name), `dsi.Machine` (press numbers like `P 24`, `UnitsPerTick` = tyres per tick),
+Fill `dsi.Employee` (EPF No, Name), `dsi.Machine` (press numbers like `P 24`),
 `dsi.Item` (item code, description exactly as in ERP, standard rate per hour). Best: a nightly SQL Agent job
 from HR/ERP. `database/SampleMasterData.sql` shows the shape. **Good master data = more auto-approved sheets.**
 
@@ -56,9 +58,10 @@ database role `dsi_app` (see `database/ExampleQueries.sql`).
 DSI.WorkForce.Worker.exe --calibrate C:\samples\batch1.pdf --out C:\samples\calibration
 ```
 Open `*_overlay.png`: every box of the form has a rectangle: green = value found, orange = empty, red = needs review,
-and the hourly grid shows `n ticks = units`. If a zone is off, adjust its `zone` in
+and every hourly cell has its own rectangle. If a zone is off, adjust its `zone` in
 `templates/forms/PC-011-A.v1.json` (fractions of the form border: x, y, w, h). Try 20–30 sheets from different
-scanners/operators. Tune `omr.markThreshold` only if faint ticks are missed.
+scanners/operators. If faint pencil numbers are treated as empty, lower `Extraction:BlankInkThreshold`; if
+smudges are treated as written, raise it. Tune `omr.markThreshold` only if faint checklist ticks are missed.
 
 ## Step 6: Install the Worker as a Windows Service
 

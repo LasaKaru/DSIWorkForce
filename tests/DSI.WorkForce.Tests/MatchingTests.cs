@@ -49,7 +49,10 @@ public class MatchingTests
     [Fact]
     public void Machine_units_per_tick_overrides_template_default()
     {
-        var t = TestData.PressTemplate();
+        // Tick-based tally grids are still supported (extractor OmrTally) for forms where operators tick instead of writing numbers.
+        var t = new DSI.WorkForce.Core.Templates.FormTemplateDefinition { TemplateCode = "TICKS" };
+        t.Fields.Add(new() { Key = "RESOURCE_NO", Type = FieldDataType.Text, Lookup = "Machine", PromoteTo = "ResourceNo", Zone = new(0, 0, .1, .1) });
+        t.Fields.Add(new() { Key = "HOURLY_UNITS", Type = FieldDataType.Integer, Extractor = ExtractorKind.OmrTally, Rows = 8, Columns = 12, UnitsPerTick = 6, Zone = new(0, .2, .5, .5) });
         var ws = new WorksheetExtraction { TemplateCode = t.TemplateCode, PageNo = 1 };
         ws.Values.Add(new ExtractedValue { FieldKey = "RESOURCE_NO", ValueText = "P24", Confidence = 0.95m });
         ws.Values.Add(new ExtractedValue { FieldKey = "HOURLY_UNITS", RowIndex = 1, RawText = "8", ValueNumber = 8, Confidence = 0.99m });

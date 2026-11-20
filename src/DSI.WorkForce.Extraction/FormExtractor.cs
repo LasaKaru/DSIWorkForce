@@ -34,12 +34,12 @@ public sealed class FormExtractor(IHandwritingRecognizer recognizer, IOptions<Ex
         var omr = template.Omr;
         var pending = new List<(FieldDefinition Field, RecognitionRequest Request)>();
 
-        foreach (var f in template.Fields)
+        foreach (var f in template.Fields.Where(f => f.Extractor != ExtractorKind.Computed))
         {
-            var rows = f.IsMultiRow ? Enumerable.Range(1, f.Rows) : [0];
-            foreach (var row in rows)
+            // row = 0 (single box), 1..Rows (table column) or 1..Rows*Columns (grid cell)
+            foreach (var row in f.RowIndexes())
             {
-                var zone = f.Zone.Row(row == 0 ? 1 : row, f.Rows);
+                var zone = f.ZoneOf(row);
                 switch (f.Extractor)
                 {
                     case ExtractorKind.Omr:
@@ -80,7 +80,7 @@ public sealed class FormExtractor(IHandwritingRecognizer recognizer, IOptions<Ex
                             ws.Values.Add(new ExtractedValue { FieldKey = f.Key, RowIndex = row, RawText = "[handwriting]", Confidence = 0m, Source = ValueSource.Manual });
                             continue;
                         }
-                        pending.Add((f, new RecognitionRequest(f.Key, row, zone, f.Type, f.IsMultiRow ? $"{f.Label} #{row}" : f.Label, f.Hint)));
+                        pending.Add((f, new RecognitionRequest(f.Key, row, zone, f.Type, Describe(f, row), f.Hint)));
                         break;
                     }
                 }
@@ -98,11 +98,18 @@ public sealed class FormExtractor(IHandwritingRecognizer recognizer, IOptions<Ex
             }
         }
 
+        ComputedFields.Apply(ws, template);   // e.g. hourly units = sum of the 12 numbers in that hour row
         LookupResolver.Apply(ws, template, master);
         WorksheetValidator.Validate(ws, template);
 
         Cv2.ImEncode(".jpg", alignment.Aligned, out var jpeg, new ImageEncodingParam(ImwriteFlags.JpegQuality, _opt.AlignedImageJpegQuality));
         ws.AlignedImageJpeg = jpeg;
         return ws;
+    }
+
+    private static string Describe(FieldDefinition f, int row)
+    {
+        if (f.IsGrid) { var (r, c) = f.CellOf(row); return $"{f.Label} - hour {r}, cell {c}"; }
+        return f.IsMultiRow ? $"{f.Label} #{row}" : f.Label;
     }
 }

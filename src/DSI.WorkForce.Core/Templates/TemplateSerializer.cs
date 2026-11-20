@@ -46,6 +46,14 @@ public static class TemplateSerializer
             if (f.Rows < 1 || f.Rows > 50) errors.Add($"Field '{f.Key}': rows must be 1..50.");
             if (f.Extractor == ExtractorKind.OmrTally && (f.Columns < 1 || f.Type != FieldDataType.Integer))
                 errors.Add($"Field '{f.Key}': OmrTally needs columns >= 1 and type Integer.");
+            if (f.Rows * Math.Max(1, f.Columns) > 255) errors.Add($"Field '{f.Key}': rows x columns must be <= 255.");
+            if (f.Extractor == ExtractorKind.Computed)
+            {
+                var src = f.SumOf is null ? null : t.Find(f.SumOf);
+                if (src is null || !src.IsGrid) errors.Add($"Field '{f.Key}': Computed needs sumOf = a grid field (columns > 1).");
+                else if (src.Rows != f.Rows) errors.Add($"Field '{f.Key}': rows must equal rows of '{src.Key}'.");
+                if (f.Type is not (FieldDataType.Integer or FieldDataType.Decimal)) errors.Add($"Field '{f.Key}': Computed must be Integer or Decimal.");
+            }
             if (f.Extractor == ExtractorKind.Omr && f.Type != FieldDataType.Checkbox)
                 errors.Add($"Field '{f.Key}': Omr extractor needs type Checkbox.");
             if (f.PromoteTo is not null && !WorksheetHeaderColumns.Promotable.Contains(f.PromoteTo))

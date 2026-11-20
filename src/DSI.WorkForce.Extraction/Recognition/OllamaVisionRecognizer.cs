@@ -65,22 +65,28 @@ public sealed class OllamaVisionRecognizer(HttpClient http, IOptions<ExtractionO
 
     private static byte[] BuildContactSheet(Mat page, IReadOnlyList<RecognitionRequest> requests)
     {
-        const int rowHeight = 90, labelWidth = 70, maxWidth = 900;
-        using var sheet = new Mat(rowHeight * requests.Count, labelWidth + maxWidth, MatType.CV_8UC1, Scalar.White);
+        // Tile the snippets so ~100 hourly cells still make a readable image of reasonable size.
+        var tilesPerRow = requests.Count <= 12 ? 1 : requests.Count <= 40 ? 3 : 5;
+        int tileW = tilesPerRow == 1 ? 970 : 380, tileH = 90, labelW = 70;
+        var rowsOfTiles = (requests.Count + tilesPerRow - 1) / tilesPerRow;
+        using var sheet = new Mat(tileH * rowsOfTiles, tileW * tilesPerRow, MatType.CV_8UC1, Scalar.White);
         for (var i = 0; i < requests.Count; i++)
         {
+            int ox = i % tilesPerRow * tileW, oy = i / tilesPerRow * tileH;
             var z = requests[i].Zone;
             var rect = new Rect((int)(z.X * page.Width), (int)(z.Y * page.Height), (int)(z.W * page.Width), (int)(z.H * page.Height))
                 .Intersect(new Rect(0, 0, page.Width, page.Height));
-            if (rect.Width <= 0 || rect.Height <= 0) continue;
-            using var crop = new Mat(page, rect);
-            var scale = Math.Min((rowHeight - 6) / (double)rect.Height, maxWidth / (double)rect.Width);
-            using var resized = new Mat();
-            Cv2.Resize(crop, resized, new Size(Math.Max(1, (int)(rect.Width * scale)), Math.Max(1, (int)(rect.Height * scale))));
-            using var target = new Mat(sheet, new Rect(labelWidth, i * rowHeight + 3, resized.Width, resized.Height));
-            resized.CopyTo(target);
-            Cv2.PutText(sheet, (i + 1).ToString(), new Point(8, i * rowHeight + rowHeight / 2 + 12), HersheyFonts.HersheySimplex, 1.1, Scalar.Black, 2);
-            Cv2.Line(sheet, new Point(0, (i + 1) * rowHeight - 1), new Point(sheet.Width, (i + 1) * rowHeight - 1), Scalar.Gray, 1);
+            if (rect.Width > 0 && rect.Height > 0)
+            {
+                using var crop = new Mat(page, rect);
+                var scale = Math.Min((tileH - 6) / (double)rect.Height, (tileW - labelW - 6) / (double)rect.Width);
+                using var resized = new Mat();
+                Cv2.Resize(crop, resized, new Size(Math.Max(1, (int)(rect.Width * scale)), Math.Max(1, (int)(rect.Height * scale))));
+                using var target = new Mat(sheet, new Rect(ox + labelW, oy + 3, resized.Width, resized.Height));
+                resized.CopyTo(target);
+            }
+            Cv2.PutText(sheet, (i + 1).ToString(), new Point(ox + 6, oy + tileH / 2 + 12), HersheyFonts.HersheySimplex, 1.0, Scalar.Black, 2);
+            Cv2.Rectangle(sheet, new Rect(ox, oy, tileW - 1, tileH - 1), Scalar.Gray, 1);
         }
         Cv2.ImEncode(".jpg", sheet, out var bytes, new ImageEncodingParam(ImwriteFlags.JpegQuality, 90));
         return bytes;

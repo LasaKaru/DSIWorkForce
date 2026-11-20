@@ -26,11 +26,13 @@
     <div class="filters">
         <label>Title <input @bind="_report.Title" size="30" /></label>
         <label>Subtitle <input @bind="_report.Subtitle" size="30" /></label>
+        <label>One report row per… <input @bind="_report.RowField" list="src-Field" placeholder="(empty = per sheet)" size="16"
+               title="HOURLY_UNITS = one row per hour (like the Excel). Empty = one row per worksheet." /></label>
         <label><input type="checkbox" @bind="_report.OnlyApproved" /> Only approved / verified sheets</label>
     </div>
 
     <table class="grid admin">
-        <thead><tr><th></th><th>Key</th><th>Excel header</th><th>Source type</th><th>Source</th><th>Row</th><th>Aggregate</th><th>Expression</th><th>Format</th><th>Visible</th><th></th></tr></thead>
+        <thead><tr><th></th><th>Key</th><th>Excel header</th><th>Source type</th><th>Source</th><th>Row</th><th>Cell</th><th>Aggregate</th><th>Expression</th><th>Format</th><th>Visible</th><th></th></tr></thead>
         <tbody>
             @foreach (var c in _report.Columns)
             {
@@ -49,7 +51,8 @@
                             <input @bind="c.Source" list="@($"src-{c.SourceType}")" size="18" />
                         }
                     </td>
-                    <td>@if (c.SourceType == ReportSourceType.Field) { <input type="number" @bind="c.RowIndex" style="width:4em" /> }</td>
+                    <td>@if (c.SourceType is ReportSourceType.Field or ReportSourceType.FieldAggregate) { <input type="number" @bind="c.RowIndex" style="width:4em" title="Fixed row. Empty in a per-row report = current row." /> }</td>
+                    <td>@if (c.SourceType is ReportSourceType.Field or ReportSourceType.FieldAggregate) { <input type="number" @bind="c.Cell" style="width:4em" title="Grid fields: cell 1..12 of the row" /> }</td>
                     <td>
                         @if (c.SourceType == ReportSourceType.FieldAggregate)
                         {
@@ -112,7 +115,7 @@
     {
         var copy = new ReportDefinition
         {
-            Code = _newCode!.Trim(), Title = _newCode!.Trim(), Subtitle = _report?.Subtitle,
+            Code = _newCode!.Trim(), Title = _newCode!.Trim(), Subtitle = _report?.Subtitle, RowField = _report?.RowField,
             TemplateCodes = _report?.TemplateCodes.ToList() ?? [], Columns = _report?.Columns.Select(Clone).ToList() ?? [],
         };
         _reports.Add(copy);
@@ -139,6 +142,7 @@
     {
         (_sql, _errors) = (null, new());
         for (var i = 0; i < _report!.Columns.Count; i++) _report.Columns[i].Order = (i + 1) * 10;
+        if (string.IsNullOrWhiteSpace(_report.RowField)) _report.RowField = null;
         var fields = await Templates.GetFieldMapAsync();
         _errors = ReportViewSqlBuilder.Validate(_report, fields).ToList();
         if (_errors.Count > 0) return;
@@ -152,7 +156,7 @@
 
     private static ReportColumnDefinition Clone(ReportColumnDefinition c) => new()
     {
-        Order = c.Order, Key = c.Key, Header = c.Header, SourceType = c.SourceType, Source = c.Source, RowIndex = c.RowIndex,
+        Order = c.Order, Key = c.Key, Header = c.Header, SourceType = c.SourceType, Source = c.Source, RowIndex = c.RowIndex, Cell = c.Cell,
         Aggregate = c.Aggregate, Expression = c.Expression, Format = c.Format, Visible = c.Visible,
     };
 }
