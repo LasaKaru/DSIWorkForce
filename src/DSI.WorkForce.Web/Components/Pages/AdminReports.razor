@@ -1,0 +1,158 @@
+@page "/admin/reports"
+@attribute [Authorize(Policy = Policies.Admin)]
+@inject ReportRepository Reports
+@inject TemplateRepository Templates
+
+<PageTitle>Report columns - DSI WorkForce</PageTitle>
+<h1>Report columns</h1>
+<p class="muted">
+    Each report is generated as SQL view <code>rpt.vw_&lt;Code&gt;</code>. Add, remove, rename or reorder columns here and press
+    <b>Save &amp; rebuild</b>. The web grid, Excel export, WPF app and the SQL view all pick up the change immediately.
+    To capture a <i>new box from the paper form</i>, first add the field to the template JSON (see docs/03-customizing.md).
+</p>
+
+<div class="filters">
+    <label>Report
+        <select value="@_report?.Code" @onchange="Select">
+            @foreach (var r in _reports) { <option value="@r.Code">@r.Title (@r.Code)</option> }
+        </select>
+    </label>
+    <label>New report code <input @bind="_newCode" placeholder="ShiftSummary" size="14" /></label>
+    <button class="btn" @onclick="NewReport" disabled="@string.IsNullOrWhiteSpace(_newCode)">Create (copy of current)</button>
+</div>
+
+@if (_report is not null)
+{
+    <div class="filters">
+        <label>Title <input @bind="_report.Title" size="30" /></label>
+        <label>Subtitle <input @bind="_report.Subtitle" size="30" /></label>
+        <label><input type="checkbox" @bind="_report.OnlyApproved" /> Only approved / verified sheets</label>
+    </div>
+
+    <table class="grid admin">
+        <thead><tr><th></th><th>Key</th><th>Excel header</th><th>Source type</th><th>Source</th><th>Row</th><th>Aggregate</th><th>Expression</th><th>Format</th><th>Visible</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var c in _report.Columns)
+            {
+                <tr>
+                    <td class="nowrap"><button class="mini" @onclick="() => Move(c, -1)">▲</button><button class="mini" @onclick="() => Move(c, 1)">▼</button></td>
+                    <td><input @bind="c.Key" size="10" /></td>
+                    <td><input @bind="c.Header" size="18" /></td>
+                    <td>
+                        <select @bind="c.SourceType">
+                            @foreach (var t in Enum.GetValues<ReportSourceType>()) { <option value="@t">@t</option> }
+                        </select>
+                    </td>
+                    <td>
+                        @if (c.SourceType != ReportSourceType.Expression)
+                        {
+                            <input @bind="c.Source" list="@($"src-{c.SourceType}")" size="18" />
+                        }
+                    </td>
+                    <td>@if (c.SourceType == ReportSourceType.Field) { <input type="number" @bind="c.RowIndex" style="width:4em" /> }</td>
+                    <td>
+                        @if (c.SourceType == ReportSourceType.FieldAggregate)
+                        {
+                            <select @bind="c.Aggregate">
+                                @foreach (var a in new[] { "SUM", "MIN", "MAX", "AVG", "COUNT", "LIST" }) { <option>@a</option> }
+                            </select>
+                        }
+                    </td>
+                    <td>@if (c.SourceType == ReportSourceType.Expression) { <input @bind="c.Expression" size="34" placeholder="{Units} / NULLIF({StdRate}, 0)" /> }</td>
+                    <td><input @bind="c.Format" size="9" placeholder="0.00%" /></td>
+                    <td><input type="checkbox" @bind="c.Visible" /></td>
+                    <td><button class="mini danger" @onclick="() => _report.Columns.Remove(c)">✕</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <datalist id="src-Header">@foreach (var h in ReportViewSqlBuilder.AvailableHeaderColumns) { <option value="@h" /> }</datalist>
+    <datalist id="src-Lookup">@foreach (var h in ReportViewSqlBuilder.AvailableLookups) { <option value="@h" /> }</datalist>
+    <datalist id="src-Field">@foreach (var f in _fields) { <option value="@f" /> }</datalist>
+    <datalist id="src-FieldAggregate">@foreach (var f in _fields) { <option value="@f" /> }</datalist>
+
+    <div class="actions">
+        <button class="btn" @onclick="AddColumn">+ Add column</button>
+        <button class="btn primary" @onclick="Save">Save &amp; rebuild view</button>
+    </div>
+
+    @if (_errors.Count > 0)
+    {
+        <ul class="issues">@foreach (var e in _errors) { <li class="error">@e</li> }</ul>
+    }
+    @if (_sql is not null)
+    {
+        <p class="ok">Saved. View <code>rpt.vw_@_report.Code</code> and function <code>rpt.fn_@_report.Code</code> rebuilt.</p>
+        <details><summary>Generated SQL</summary><pre>@_sql</pre></details>
+    }
+}
+
+@code {
+    private List<ReportDefinition> _reports = new();
+    private ReportDefinition? _report;
+    private List<string> _fields = new();
+    private List<string> _errors = new();
+    private string? _sql, _newCode;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _reports = (await Reports.GetAllAsync()).ToList();
+        _report = _reports.FirstOrDefault();
+        _fields = (await Templates.GetFieldMapAsync()).Keys.OrderBy(k => k).ToList();
+    }
+
+    private void Select(ChangeEventArgs e)
+    {
+        _report = _reports.FirstOrDefault(r => r.Code == (string?)e.Value);
+        (_sql, _errors) = (null, new());
+    }
+
+    private void NewReport()
+    {
+        var copy = new ReportDefinition
+        {
+            Code = _newCode!.Trim(), Title = _newCode!.Trim(), Subtitle = _report?.Subtitle,
+            TemplateCodes = _report?.TemplateCodes.ToList() ?? [], Columns = _report?.Columns.Select(Clone).ToList() ?? [],
+        };
+        _reports.Add(copy);
+        _report = copy;
+        _newCode = null;
+    }
+
+    private void AddColumn()
+    {
+        var order = (_report!.Columns.Count == 0 ? 0 : _report.Columns.Max(c => c.Order)) + 10;
+        _report.Columns.Add(new ReportColumnDefinition { Order = order, Key = $"Col{order}", Header = $"New column {order}", SourceType = ReportSourceType.Field });
+    }
+
+    private void Move(ReportColumnDefinition c, int delta)
+    {
+        var list = _report!.Columns;
+        var i = list.IndexOf(c);
+        var j = i + delta;
+        if (j < 0 || j >= list.Count) return;
+        (list[i], list[j]) = (list[j], list[i]);
+    }
+
+    private async Task Save()
+    {
+        (_sql, _errors) = (null, new());
+        for (var i = 0; i < _report!.Columns.Count; i++) _report.Columns[i].Order = (i + 1) * 10;
+        var fields = await Templates.GetFieldMapAsync();
+        _errors = ReportViewSqlBuilder.Validate(_report, fields).ToList();
+        if (_errors.Count > 0) return;
+        try
+        {
+            var sql = await Reports.SaveAndBuildAsync(_report);
+            _sql = sql.ViewSql + "\nGO\n" + sql.FunctionSql;
+        }
+        catch (Exception ex) { _errors.Add(ex.Message); }
+    }
+
+    private static ReportColumnDefinition Clone(ReportColumnDefinition c) => new()
+    {
+        Order = c.Order, Key = c.Key, Header = c.Header, SourceType = c.SourceType, Source = c.Source, RowIndex = c.RowIndex,
+        Aggregate = c.Aggregate, Expression = c.Expression, Format = c.Format, Visible = c.Visible,
+    };
+}

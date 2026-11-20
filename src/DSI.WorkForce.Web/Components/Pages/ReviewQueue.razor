@@ -1,0 +1,58 @@
+@page "/review"
+@attribute [Authorize(Policy = Policies.Reviewer)]
+@inject WorksheetRepository Worksheets
+
+<PageTitle>Review - DSI WorkForce</PageTitle>
+<h1>Review queue</h1>
+
+<div class="filters">
+    <label>Status
+        <select @bind="_status">
+            <option value="NeedsReview">Needs review</option>
+            <option value="AutoApproved">Auto-approved</option>
+            <option value="Verified">Verified</option>
+            <option value="Rejected">Rejected</option>
+            <option value="">All</option>
+        </select>
+    </label>
+    <label>From <input type="date" @bind="_from" /></label>
+    <label>To <input type="date" @bind="_to" /></label>
+    <label>Press <input @bind="_resource" placeholder="P 24" size="6" /></label>
+    <label>EPF <input @bind="_epf" size="6" /></label>
+    <button class="btn" @onclick="Load">Search</button>
+</div>
+
+@if (_rows is null) { <p>Loading…</p> }
+else if (_rows.Count == 0) { <p class="muted">Nothing here. 🎉</p> }
+else
+{
+    <table class="grid">
+        <thead><tr><th>Sheet</th><th>Status</th><th>Date</th><th>Shift</th><th>Press</th><th>EPF</th><th>Item</th><th>Issues</th><th>Min conf.</th><th>File / page</th><th>Scanned</th></tr></thead>
+        <tbody>
+            @foreach (var r in _rows)
+            {
+                <tr class="clickable" @onclick="@(() => Nav.NavigateTo($"review/{r.WorksheetId}"))">
+                    <td>@r.WorksheetId</td><td><StatusBadge Status="@r.Status" /></td>
+                    <td>@r.WorkDate?.ToString("dd/MM/yyyy")</td><td>@r.Shift</td><td>@r.ResourceNo</td><td>@r.EpfNo</td><td>@r.ItemCode</td>
+                    <td>@r.OpenIssues</td><td><ConfidenceBadge Value="@r.MinConfidence" /></td>
+                    <td>@r.FileName / @r.PageNo</td><td>@r.CreatedAt.ToLocalTime().ToString("g")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+    private string _status = "NeedsReview";
+    private DateOnly? _from, _to;
+    private string? _resource, _epf;
+    private List<WorksheetSummaryDto>? _rows;
+
+    protected override Task OnInitializedAsync() => Load();
+
+    private async Task Load() =>
+        _rows = (await Worksheets.SearchAsync(_status == "" ? null : _status, _from, _to, Blank(_resource), Blank(_epf), 500)).ToList();
+
+    private static string? Blank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+}

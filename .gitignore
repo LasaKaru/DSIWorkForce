@@ -1,0 +1,24 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+*.swp
+TestResults/
+publish/
+artifacts/
+
+## Runtime output
+logs/
+calibration/
+
+## Scans contain employee data - never commit them
+*.pdf
+samples/
+!docs/**/*.pdf
+
+## Local secrets
+appsettings.*.local.json
+secrets.json

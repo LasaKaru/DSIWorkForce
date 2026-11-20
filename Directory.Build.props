@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Company>DSI Tyres - Samson Rubber Industries (Pvt) Ltd</Company>
+    <Product>DSI WorkForce Digitization</Product>
+    <Version>1.0.0</Version>
+    <!-- Allows the WPF project to be restored/built from non-Windows CI agents. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+</Project>

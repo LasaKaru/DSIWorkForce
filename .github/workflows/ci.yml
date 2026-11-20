@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, "claude/**" ]
+  pull_request:
+
+jobs:
+  server:
+    name: Server (Core, Data, Extraction, Worker, Web, tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet build DSIWorkForce.Server.slnf -c Release
+      - run: dotnet test tests/DSI.WorkForce.Tests -c Release --no-build
+
+  windows:
+    name: Full solution incl. WPF (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet build DSIWorkForce.sln -c Release
+      - run: dotnet test tests/DSI.WorkForce.Tests -c Release --no-build

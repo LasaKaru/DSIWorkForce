@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Pure domain + business logic. No database, OCR or UI dependencies, so WPF and Web can both reference it. -->
+  <PropertyGroup>
+    <RootNamespace>DSI.WorkForce.Core</RootNamespace>
+  </PropertyGroup>
+</Project>

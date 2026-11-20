@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- WPF client: scan station (upload / watch a local scanner folder), review screen and Excel-like reports.
+       Talks to DSI.WorkForce.Web over HTTP with Windows authentication; never connects to SQL directly. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>DSI.WorkForce.Desktop</RootNamespace>
+    <AssemblyName>DSI.WorkForce.Desktop</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DSI.WorkForce.Core\DSI.WorkForce.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="desktopsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,65 @@
+@page "/"
+@attribute [Authorize(Policy = Policies.Reviewer)]
+@inject WorksheetRepository Worksheets
+@inject ScanQueueRepository Queue
+
+<PageTitle>Dashboard - DSI WorkForce</PageTitle>
+<h1>Dashboard</h1>
+
+@if (_d is null) { <p>Loading…</p> }
+else
+{
+    <div class="tiles">
+        <div class="tile"><label>Sheets today</label><b>@_d.SheetsToday</b></div>
+        <div class="tile good"><label>Auto-approved today</label><b>@_d.AutoApprovedToday</b></div>
+        <div class="tile warn"><a href="review"><label>Waiting for review</label><b>@_d.NeedsReviewTotal</b></a></div>
+        <div class="tile"><label>Verified today</label><b>@_d.VerifiedToday</b></div>
+        <div class="tile"><label>Files queued / processing</label><b>@_d.PendingFiles / @_d.ProcessingFiles</b></div>
+        <div class="tile @(_d.FailedFiles > 0 ? "bad" : "")"><label>Failed files</label><b>@_d.FailedFiles</b></div>
+    </div>
+    <p class="muted">
+        Worker heartbeat:
+        @if (_d.LastWorkerHeartbeatUtc is { } hb)
+        {
+            var age = DateTime.UtcNow - DateTime.SpecifyKind(hb, DateTimeKind.Utc);
+            <span class="@(age.TotalMinutes > 2 ? "error" : "")">@hb.ToLocalTime().ToString("g") (@((int)age.TotalSeconds) s ago)</span>
+        }
+        else { <span class="error">never - is the DSI WorkForce Worker service running?</span> }
+    </p>
+
+    @if (_failed.Count > 0)
+    {
+        <h2>Failed files</h2>
+        <table class="grid">
+            <thead><tr><th>Id</th><th>File</th><th>Attempts</th><th>Error</th><th>Received</th></tr></thead>
+            <tbody>
+                @foreach (var f in _failed)
+                {
+                    <tr><td>@f.ScanFileId</td><td>@f.FileName</td><td>@f.Attempts</td><td class="wrap">@f.LastError</td><td>@f.ReceivedAt.ToLocalTime().ToString("g")</td></tr>
+                }
+            </tbody>
+        </table>
+        <AuthorizeView Policy="@Policies.Admin">
+            <button class="btn" @onclick="RetryFailed">Retry all failed files</button>
+        </AuthorizeView>
+    }
+}
+
+@code {
+    private DashboardDto? _d;
+    private List<(long ScanFileId, string FileName, int Attempts, string? LastError, DateTime ReceivedAt)> _failed = new();
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _d = await Worksheets.GetDashboardAsync();
+        _failed = (await Queue.GetFailedAsync(50)).ToList();
+    }
+
+    private async Task RetryFailed()
+    {
+        await Queue.RetryFailedAsync(null);
+        await Load();
+    }
+}

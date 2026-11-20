@@ -1,0 +1,14 @@
+{
+  "solution": {
+    "path": "DSIWorkForce.sln",
+    "projects": [
+      "src\\DSI.WorkForce.Core\\DSI.WorkForce.Core.csproj",
+      "src\\DSI.WorkForce.Data\\DSI.WorkForce.Data.csproj",
+      "src\\DSI.WorkForce.Extraction\\DSI.WorkForce.Extraction.csproj",
+      "src\\DSI.WorkForce.Worker\\DSI.WorkForce.Worker.csproj",
+      "src\\DSI.WorkForce.DbMigrator\\DSI.WorkForce.DbMigrator.csproj",
+      "src\\DSI.WorkForce.Web\\DSI.WorkForce.Web.csproj",
+      "tests\\DSI.WorkForce.Tests\\DSI.WorkForce.Tests.csproj"
+    ]
+  }
+}

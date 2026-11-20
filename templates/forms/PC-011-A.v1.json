@@ -1,0 +1,557 @@
+{
+  "$comment": "Layout of paper form PC-011-A (Work Sheet Press Section). Zones are fractions (0..1) of the form's printed outer border. Calibrate with: DSI.WorkForce.Worker --calibrate <scan.pdf>",
+  "templateCode": "PC-011-A",
+  "version": 1,
+  "name": "Work Sheet Press Section",
+  "description": "Samson Rubber Industries (Pvt) Ltd - DSI Tyres press section hourly worksheet, revision 01",
+  "alignment": {
+    "method": "OuterBorder",
+    "canonicalWidth": 1800,
+    "canonicalHeight": 2642,
+    "minBorderAreaRatio": 0.3,
+    "renderDpi": 200
+  },
+  "omr": {
+    "binarizeBlockSize": 31,
+    "binarizeC": 15,
+    "cellInset": 0.15,
+    "markThreshold": 0.015,
+    "uncertainBand": 0.008
+  },
+  "autoApproveConfidence": 0.9,
+  "fields": [
+    {
+      "key": "WORK_DATE",
+      "label": "Date / දිනය",
+      "group": "Header",
+      "type": "Date",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.1137,
+        "y": 0.0797,
+        "w": 0.1634,
+        "h": 0.0271
+      },
+      "required": true,
+      "promoteTo": "WorkDate",
+      "dateFormats": [
+        "yy/M/d",
+        "d/M/yy",
+        "d/M/yyyy"
+      ],
+      "hint": "Date written as YY/MM/DD, e.g. 26/11/17"
+    },
+    {
+      "key": "RESOURCE_NO",
+      "label": "Press No / ප්‍රෙස් අංකය",
+      "group": "Header",
+      "type": "Text",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.1137,
+        "y": 0.1083,
+        "w": 0.1634,
+        "h": 0.0474
+      },
+      "required": true,
+      "lookup": "Machine",
+      "promoteTo": "ResourceNo",
+      "hint": "Press number like P-24"
+    },
+    {
+      "key": "EPF_NO",
+      "label": "Operator EPF No",
+      "group": "Header",
+      "type": "Integer",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.1137,
+        "y": 0.1579,
+        "w": 0.1634,
+        "h": 0.0451
+      },
+      "required": true,
+      "lookup": "Employee",
+      "promoteTo": "EpfNo",
+      "hint": "Employee EPF number, digits only"
+    },
+    {
+      "key": "SHIFT",
+      "label": "Shift / වැඩ මුරය",
+      "group": "Header",
+      "type": "Text",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.4172,
+        "y": 0.0797,
+        "w": 0.2174,
+        "h": 0.0271
+      },
+      "required": true,
+      "allowedValues": [
+        "6-2",
+        "2-10",
+        "10-6"
+      ],
+      "promoteTo": "Shift",
+      "hint": "Shift like 6-2, 2-10 or 10-6"
+    },
+    {
+      "key": "TARGET_QTY",
+      "label": "Target / ඉලක්කය",
+      "group": "Header",
+      "type": "Integer",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.4172,
+        "y": 0.1083,
+        "w": 0.2174,
+        "h": 0.0474
+      },
+      "min": 0,
+      "max": 5000
+    },
+    {
+      "key": "OPERATOR_NAME",
+      "label": "Operator Name",
+      "group": "Header",
+      "type": "Text",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.4172,
+        "y": 0.1579,
+        "w": 0.2174,
+        "h": 0.0451
+      },
+      "hint": "Person name"
+    },
+    {
+      "key": "ITEM_DESCRIPTION",
+      "label": "Tyre Type / ටයර් වර්ගය",
+      "group": "Header",
+      "type": "Text",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.1225,
+        "y": 0.2075,
+        "w": 0.5132,
+        "h": 0.0398
+      },
+      "required": true,
+      "lookup": "Item",
+      "promoteTo": "ItemCode",
+      "hint": "Tyre size e.g. 29x2.10 SRI 94 F/B"
+    },
+    {
+      "key": "MOULD_LOG_TIME",
+      "label": "Mould log - Time",
+      "group": "Mould Log",
+      "type": "Text",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.6755,
+        "y": 0.1301,
+        "w": 0.0706,
+        "h": 0.1436
+      },
+      "rows": 6
+    },
+    {
+      "key": "MOULD_LOG_VALUE",
+      "label": "Mould log - Mould No / Count",
+      "group": "Mould Log",
+      "type": "Integer",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.7483,
+        "y": 0.1301,
+        "w": 0.1578,
+        "h": 0.1436
+      },
+      "rows": 6,
+      "min": 0,
+      "max": 999
+    },
+    {
+      "key": "MOULD_LOG_REMARK",
+      "label": "Mould log - Remark",
+      "group": "Mould Log",
+      "type": "Text",
+      "extractor": "Manual",
+      "zone": {
+        "x": 0.9106,
+        "y": 0.1301,
+        "w": 0.0872,
+        "h": 0.1436
+      },
+      "rows": 6
+    },
+    {
+      "key": "CHK_STEAM_TRAPS",
+      "label": "Steam traps working",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.2406,
+        "y": 0.3263,
+        "w": 0.0419,
+        "h": 0.0338
+      }
+    },
+    {
+      "key": "CHK_AUTO_STEAM_SYSTEM",
+      "label": "Automatic steam supply system working",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.2406,
+        "y": 0.3602,
+        "w": 0.0419,
+        "h": 0.0338
+      }
+    },
+    {
+      "key": "CHK_WIPER_SWITCH",
+      "label": "Wiper / limit switch ON",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.2406,
+        "y": 0.394,
+        "w": 0.0419,
+        "h": 0.0353
+      }
+    },
+    {
+      "key": "CHK_PRESS_CYLINDER_CLEAN",
+      "label": "Press cylinder clean",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.2406,
+        "y": 0.4293,
+        "w": 0.0419,
+        "h": 0.0331
+      }
+    },
+    {
+      "key": "CHK_STEAM_LEAK_QUARTER",
+      "label": "Steam leak 1/4 inch",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.2406,
+        "y": 0.4624,
+        "w": 0.0419,
+        "h": 0.0346
+      }
+    },
+    {
+      "key": "CHK_STEAM_LEAK_HALF",
+      "label": "Steam leak 1/2 inch",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.2406,
+        "y": 0.497,
+        "w": 0.0419,
+        "h": 0.0338
+      }
+    },
+    {
+      "key": "CHK_TYRE_PATTERN",
+      "label": "Tyre tread pattern",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.2406,
+        "y": 0.5308,
+        "w": 0.0419,
+        "h": 0.0346
+      }
+    },
+    {
+      "key": "CHK_HYD_OIL_LEAK",
+      "label": "Hydraulic oil leak",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.5883,
+        "y": 0.3263,
+        "w": 0.0464,
+        "h": 0.0338
+      }
+    },
+    {
+      "key": "CHK_BLADDER_STEAM_PRESSURE",
+      "label": "Steam pressure into diaphragm bag",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.5883,
+        "y": 0.3602,
+        "w": 0.0464,
+        "h": 0.0338
+      }
+    },
+    {
+      "key": "CHK_MOULD_STEAM_SUPPLY",
+      "label": "Steam supply to moulds",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.5883,
+        "y": 0.394,
+        "w": 0.0464,
+        "h": 0.0353
+      }
+    },
+    {
+      "key": "CHK_HYD_PRESSURE",
+      "label": "Hydraulic pressure",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.5883,
+        "y": 0.4293,
+        "w": 0.0464,
+        "h": 0.0331
+      }
+    },
+    {
+      "key": "CHK_PRV_UNIT",
+      "label": "PRV unit working",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.5883,
+        "y": 0.4624,
+        "w": 0.0464,
+        "h": 0.0346
+      }
+    },
+    {
+      "key": "CHK_TIMER",
+      "label": "Timer",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.5883,
+        "y": 0.497,
+        "w": 0.0464,
+        "h": 0.0338
+      }
+    },
+    {
+      "key": "CHK_BLADDER_RUBBER_BUSH",
+      "label": "Diaphragm bag rubber bush",
+      "group": "Machine Checklist",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.5883,
+        "y": 0.5308,
+        "w": 0.0464,
+        "h": 0.0346
+      }
+    },
+    {
+      "key": "CURING_TIME",
+      "label": "Curing time / කියුරින් කාලය",
+      "group": "Specifications",
+      "type": "Text",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.8311,
+        "y": 0.394,
+        "w": 0.1667,
+        "h": 0.0353
+      }
+    },
+    {
+      "key": "CURING_TEMP",
+      "label": "Curing temperature",
+      "group": "Specifications",
+      "type": "Text",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.8311,
+        "y": 0.4293,
+        "w": 0.1667,
+        "h": 0.0331
+      },
+      "hint": "Range like 160-166"
+    },
+    {
+      "key": "STEAM_PRESSURE",
+      "label": "Steam pressure",
+      "group": "Specifications",
+      "type": "Text",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.8311,
+        "y": 0.4624,
+        "w": 0.1667,
+        "h": 0.0346
+      }
+    },
+    {
+      "key": "STICKER_TYPE",
+      "label": "Sticker type",
+      "group": "Specifications",
+      "type": "Text",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.8311,
+        "y": 0.497,
+        "w": 0.1667,
+        "h": 0.0338
+      }
+    },
+    {
+      "key": "HOURLY_UNITS",
+      "label": "Units produced (hour)",
+      "group": "Hourly Production",
+      "type": "Integer",
+      "extractor": "OmrTally",
+      "zone": {
+        "x": 0.0662,
+        "y": 0.618,
+        "w": 0.5199,
+        "h": 0.2797
+      },
+      "rows": 8,
+      "columns": 12,
+      "unitsPerTick": 6
+    },
+    {
+      "key": "HOURLY_DEFECTS",
+      "label": "Defect count (hour)",
+      "group": "Hourly Production",
+      "type": "Integer",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.5861,
+        "y": 0.618,
+        "w": 0.0872,
+        "h": 0.2797
+      },
+      "rows": 8,
+      "min": 0,
+      "max": 500
+    },
+    {
+      "key": "HOURLY_SHORTFALL",
+      "label": "Shortfall (hour)",
+      "group": "Hourly Production",
+      "type": "Integer",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.6733,
+        "y": 0.618,
+        "w": 0.0728,
+        "h": 0.2797
+      },
+      "rows": 8,
+      "min": 0,
+      "max": 500
+    },
+    {
+      "key": "HOURLY_TEMP",
+      "label": "Temperature (hour)",
+      "group": "Hourly Production",
+      "type": "Decimal",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.7461,
+        "y": 0.618,
+        "w": 0.085,
+        "h": 0.2797
+      },
+      "rows": 8,
+      "min": 0,
+      "max": 300
+    },
+    {
+      "key": "HOURLY_REASON",
+      "label": "Reason for shortfall (hour)",
+      "group": "Hourly Production",
+      "type": "Text",
+      "extractor": "Manual",
+      "zone": {
+        "x": 0.8311,
+        "y": 0.618,
+        "w": 0.1678,
+        "h": 0.2797
+      },
+      "rows": 8
+    },
+    {
+      "key": "TOTAL_PRODUCTION",
+      "label": "Total production / මුළු නිෂ්පාදනය",
+      "group": "Totals & Sign-off",
+      "type": "Integer",
+      "extractor": "Handwriting",
+      "zone": {
+        "x": 0.5861,
+        "y": 0.9098,
+        "w": 0.0839,
+        "h": 0.0226
+      },
+      "required": true,
+      "min": 0,
+      "max": 5000
+    },
+    {
+      "key": "OPERATOR_SIGNED",
+      "label": "Operator signature present",
+      "group": "Totals & Sign-off",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.0232,
+        "y": 0.903,
+        "w": 0.2649,
+        "h": 0.0451
+      },
+      "markThreshold": 0.02
+    },
+    {
+      "key": "SUPERVISOR_SIGNED",
+      "label": "Supervisor signature present",
+      "group": "Totals & Sign-off",
+      "type": "Checkbox",
+      "extractor": "Omr",
+      "zone": {
+        "x": 0.6965,
+        "y": 0.9068,
+        "w": 0.287,
+        "h": 0.0414
+      },
+      "markThreshold": 0.02
+    }
+  ],
+  "rules": [
+    {
+      "type": "TallyMatchesTotal",
+      "field": "HOURLY_UNITS",
+      "totalField": "TOTAL_PRODUCTION",
+      "tolerance": 0,
+      "severity": "Error",
+      "message": "Hourly ticks x units-per-tick do not add up to the Total Production box."
+    }
+  ]
+}

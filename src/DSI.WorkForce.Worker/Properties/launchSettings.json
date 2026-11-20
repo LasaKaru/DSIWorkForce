@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "Worker": {
+      "commandName": "Project",
+      "environmentVariables": { "DOTNET_ENVIRONMENT": "Development" }
+    },
+    "Calibrate sample": {
+      "commandName": "Project",
+      "commandLineArgs": "--calibrate C:\\DSIWorkForce\\samples\\sample.pdf",
+      "environmentVariables": { "DOTNET_ENVIRONMENT": "Development" }
+    }
+  }
+}

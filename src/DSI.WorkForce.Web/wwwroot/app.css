@@ -1,0 +1,50 @@
+:root { --accent:#1f6f43; --line:#d0d7de; --bg:#f6f8fa; --warn:#b26b00; --bad:#b42318; --ok:#1a7f37; font-family: "Segoe UI", system-ui, sans-serif; font-size: 14px; }
+body { margin:0; background:#fff; color:#1f2328; }
+.topbar { display:flex; align-items:center; gap:24px; padding:8px 16px; background:var(--accent); color:#fff; position:sticky; top:0; z-index:5; }
+.topbar nav { display:flex; gap:4px; flex-wrap:wrap; }
+.topbar a { color:#e6f4ea; text-decoration:none; padding:6px 10px; border-radius:4px; }
+.topbar a.active, .topbar a:hover { background:rgba(255,255,255,.18); color:#fff; }
+.brand { font-size:16px; } .user { margin-left:auto; opacity:.85; }
+main { padding:16px; }
+h1 { font-size:20px; margin:4px 0 12px; } h2 { font-size:16px; } h3 { font-size:14px; margin:14px 0 4px; color:#57606a; }
+.muted { color:#57606a; } .error { color:var(--bad); } .ok { color:var(--ok); }
+.btn { border:1px solid var(--line); background:#fff; padding:6px 12px; border-radius:4px; cursor:pointer; text-decoration:none; color:inherit; display:inline-block; }
+.btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); } .btn.danger { color:var(--bad); }
+.mini { border:1px solid var(--line); background:#fff; padding:1px 5px; cursor:pointer; } .mini.danger { color:var(--bad); }
+.filters { display:flex; gap:12px; align-items:end; flex-wrap:wrap; margin-bottom:12px; }
+.filters label { display:flex; flex-direction:column; font-size:12px; color:#57606a; gap:2px; }
+input, select { font:inherit; padding:4px 6px; border:1px solid var(--line); border-radius:3px; }
+.tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px; margin-bottom:12px; }
+.tile { border:1px solid var(--line); border-radius:6px; padding:12px; background:var(--bg); }
+.tile a { color:inherit; text-decoration:none; } .tile label { display:block; color:#57606a; font-size:12px; } .tile b { font-size:26px; }
+.tile.good b { color:var(--ok); } .tile.warn b { color:var(--warn); } .tile.bad b { color:var(--bad); }
+table.grid { border-collapse:collapse; width:100%; } .grid th, .grid td { border:1px solid var(--line); padding:4px 6px; text-align:left; vertical-align:middle; }
+.grid th { background:var(--bg); font-weight:600; } .grid tr.clickable { cursor:pointer; } .grid tr.clickable:hover { background:#eef6f0; }
+.grid td.wrap { white-space:normal; max-width:420px; } .nowrap { white-space:nowrap; }
+.badge { padding:1px 8px; border-radius:10px; font-size:12px; background:#eaeef2; }
+.badge.needsreview { background:#fff1d6; color:var(--warn); } .badge.autoapproved { background:#dafbe1; color:var(--ok); }
+.badge.verified { background:#ddf4ff; color:#0969da; } .badge.rejected { background:#ffebe9; color:var(--bad); }
+.conf { font-size:12px; padding:1px 6px; border-radius:3px; } .conf.ok { background:#dafbe1; } .conf.mid { background:#fff1d6; } .conf.low { background:#ffebe9; }
+.issues { list-style:none; padding:0; margin:8px 0; } .issues li { padding:4px 8px; border-left:3px solid var(--line); margin:2px 0; background:var(--bg); }
+.issues li.error { border-color:var(--bad); } .issues li.warning { border-color:var(--warn); }
+/* Review split screen */
+.review { display:grid; grid-template-columns:minmax(380px, 45%) 1fr; gap:16px; align-items:start; }
+.page-pane { position:sticky; top:56px; max-height:calc(100vh - 72px); overflow:auto; border:1px solid var(--line); }
+.page-image { position:relative; } .page-image img { width:100%; display:block; }
+.zone-highlight { position:absolute; border:3px solid #e8590c; background:rgba(232,89,12,.12); pointer-events:none; }
+.fields td.label { width:30%; } .fields input.value { width:95%; }
+.fields tr.attention { background:#fffbea; }
+.snippet-cell { width:230px; } .snippet { width:220px; max-height:70px; background-repeat:no-repeat; border:1px solid var(--line); }
+.actions { display:flex; gap:8px; margin:16px 0; align-items:center; position:sticky; bottom:0; background:#fff; padding:8px 0; }
+.toggle { display:block; margin:8px 0; color:#57606a; }
+/* Excel-like report grid */
+.excel-wrap { overflow:auto; max-height:calc(100vh - 220px); border:1px solid #bfbfbf; }
+table.excel { border-collapse:collapse; font-family:Calibri, "Segoe UI", sans-serif; font-size:13px; }
+.excel th { position:sticky; top:0; background:#ddebf7; border:1px solid #9bc2e6; padding:4px 8px; white-space:nowrap; z-index:1; }
+.excel td { border:1px solid #d9d9d9; padding:2px 8px; white-space:nowrap; } .excel td.num { text-align:right; }
+.excel .rownum { background:#f2f2f2; color:#7f7f7f; text-align:center; position:sticky; left:0; }
+.excel tbody tr:hover td { background:#f3f9ff; }
+.admin input { padding:2px 4px; }
+pre { background:var(--bg); padding:8px; overflow:auto; font-size:12px; }
+#blazor-error-ui { background:lightyellow; bottom:0; box-shadow:0 -1px 2px rgba(0,0,0,.2); display:none; left:0; padding:.6rem 1.25rem .7rem; position:fixed; width:100%; z-index:1000; }
+#blazor-error-ui .dismiss { cursor:pointer; position:absolute; right:.75rem; top:.5rem; }

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <PropertyGroup>
+    <RootNamespace>DSI.WorkForce.Worker</RootNamespace>
+    <UserSecretsId>dsi-workforce-worker</UserSecretsId>
+    <AssemblyName>DSI.WorkForce.Worker</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Settings.Configuration" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DSI.WorkForce.Core\DSI.WorkForce.Core.csproj" />
+    <ProjectReference Include="..\DSI.WorkForce.Data\DSI.WorkForce.Data.csproj" />
+    <ProjectReference Include="..\DSI.WorkForce.Extraction\DSI.WorkForce.Extraction.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\templates\**\*.json" Link="templates\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

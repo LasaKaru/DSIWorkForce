@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>DSI.WorkForce.Web</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Serilog.Settings.Configuration" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DSI.WorkForce.Core\DSI.WorkForce.Core.csproj" />
+    <ProjectReference Include="..\DSI.WorkForce.Data\DSI.WorkForce.Data.csproj" />
+  </ItemGroup>
+</Project>

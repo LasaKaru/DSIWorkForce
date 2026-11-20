@@ -1,0 +1,42 @@
+@page "/upload"
+@attribute [Authorize(Policy = Policies.Reviewer)]
+@inject UploadService Uploads
+@inject AuthenticationStateProvider Auth
+
+<PageTitle>Upload scans - DSI WorkForce</PageTitle>
+<h1>Upload scans</h1>
+<p class="muted">Normally scanners save straight into the network hot folder. Use this page for scans made elsewhere (phone, other office).</p>
+
+<div class="filters">
+    <label>Form
+        <select @bind="_template">@foreach (var t in Uploads.TemplateCodes) { <option>@t</option> }</select>
+    </label>
+    <InputFile OnChange="OnFiles" multiple accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff" />
+</div>
+
+@if (_busy) { <p>Uploading…</p> }
+<ul class="issues">
+    @foreach (var r in _results) { <li class="@(r.Accepted ? "info" : "error")"><b>@r.FileName</b>: @r.Message</li> }
+</ul>
+
+@code {
+    private string _template = "PC-011-A";
+    private bool _busy;
+    private List<UploadResultDto> _results = new();
+
+    private async Task OnFiles(InputFileChangeEventArgs e)
+    {
+        _busy = true;
+        var user = CurrentUser.Name((await Auth.GetAuthenticationStateAsync()).User);
+        foreach (var f in e.GetMultipleFiles(200))
+        {
+            try
+            {
+                await using var s = f.OpenReadStream(Uploads.MaxFileBytes);
+                _results.Insert(0, await Uploads.SaveAsync(_template, f.Name, s, user, CancellationToken.None));
+            }
+            catch (Exception ex) { _results.Insert(0, new UploadResultDto(f.Name, false, ex.Message)); }
+        }
+        _busy = false;
+    }
+}

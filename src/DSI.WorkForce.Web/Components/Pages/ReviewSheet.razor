@@ -1,0 +1,149 @@
+@page "/review/{Id:long}"
+@attribute [Authorize(Policy = Policies.Reviewer)]
+@inject WorksheetRepository Worksheets
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider Auth
+
+<PageTitle>Sheet @Id - DSI WorkForce</PageTitle>
+
+@if (_detail is null) { <p>@(_notFound ? "Sheet not found." : "Loading…")</p> }
+else
+{
+    var s = _detail.Summary;
+    <div class="review">
+        <section class="page-pane">
+            <div class="page-image">
+                <img src="api/worksheets/@Id/image" alt="Scanned sheet" />
+                @if (_focus?.Zone is { } fz)
+                {
+                    <div class="zone-highlight" style="@ZoneStyle(fz)"></div>
+                }
+            </div>
+        </section>
+
+        <section class="fields-pane">
+            <h1>Sheet @Id <StatusBadge Status="@s.Status" /></h1>
+            <p class="muted">@s.FileName page @s.PageNo · @s.TemplateCode · scanned @s.CreatedAt.ToLocalTime().ToString("g")</p>
+
+            @if (_detail.Issues.Count > 0)
+            {
+                <ul class="issues">
+                    @foreach (var i in _detail.Issues)
+                    {
+                        <li class="@i.Severity.ToLowerInvariant()"><b>@i.Code</b> @(i.FieldKey is null ? "" : $"{i.FieldKey}{(i.RowIndex > 0 ? $" #{i.RowIndex}" : "")}:") @i.Message</li>
+                    }
+                </ul>
+            }
+
+            <label class="toggle"><input type="checkbox" @bind="_showAll" /> Show all fields (otherwise only the ones that need a human)</label>
+
+            @foreach (var group in Visible().GroupBy(v => v.Group ?? "Other"))
+            {
+                <h3>@group.Key</h3>
+                <table class="grid fields">
+                    <tbody>
+                        @foreach (var v in group)
+                        {
+                            var key = (v.FieldKey, v.RowIndex);
+                            <tr class="@(NeedsAttention(v) ? "attention" : "")" @onclick="@(() => _focus = v)">
+                                <td class="snippet-cell">@if (v.Zone is { } z) { <div class="snippet" style="@SnippetStyle(z)"></div> }</td>
+                                <td class="label">@v.Label</td>
+                                <td>
+                                    @if (v.DataType == "Checkbox")
+                                    {
+                                        <input type="checkbox" checked="@(_edits[key] == "1")" @onchange="@(e => _edits[key] = (bool)e.Value! ? "1" : "0")" @onfocus="@(() => _focus = v)" />
+                                    }
+                                    else
+                                    {
+                                        <input class="value" value="@_edits[key]" @onchange="@(e => _edits[key] = e.Value?.ToString())" @onfocus="@(() => _focus = v)"
+                                               placeholder="@(v.RawText is { Length: > 0 } raw && raw != v.Value ? "read: " + raw : "")" />
+                                    }
+                                </td>
+                                <td><ConfidenceBadge Value="@v.Confidence" /> @if (v.IsCorrected) { <span class="muted">edited</span> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (_message is not null) { <p class="@(_error ? "error" : "ok")">@_message</p> }
+            <div class="actions">
+                <button class="btn" @onclick="() => Save(false)">Save</button>
+                <button class="btn primary" @onclick="() => Save(true)">Verify ✓ &amp; next</button>
+                <input placeholder="Reject reason" @bind="_rejectReason" />
+                <button class="btn danger" @onclick="Reject" disabled="@string.IsNullOrWhiteSpace(_rejectReason)">Reject</button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public long Id { get; set; }
+
+    private WorksheetDetailDto? _detail;
+    private bool _notFound, _showAll, _error;
+    private string? _message, _rejectReason;
+    private WorksheetValueDto? _focus;
+    private Dictionary<(string, int), string?> _edits = new();
+    private const double PageAspect = 2642.0 / 1800.0;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _message = null;
+        var d = await Worksheets.GetDetailAsync(Id);
+        _notFound = d is null;
+        _detail = d?.Detail;
+        _edits = _detail?.Values.ToDictionary(v => (v.FieldKey, v.RowIndex), v => v.Value) ?? new();
+        _focus = _detail?.Values.FirstOrDefault(NeedsAttention);
+    }
+
+    private bool NeedsAttention(WorksheetValueDto v) =>
+        v.Confidence < 0.9m || _detail!.Issues.Any(i => i.FieldKey == v.FieldKey && (i.RowIndex == v.RowIndex || i.RowIndex == 0 && v.RowIndex == 0));
+
+    private IEnumerable<WorksheetValueDto> Visible() => _showAll ? _detail!.Values : _detail!.Values.Where(NeedsAttention);
+
+    private async Task Save(bool verify)
+    {
+        var corrections = _detail!.Values
+            .Where(v => !string.Equals(_edits[(v.FieldKey, v.RowIndex)] ?? "", v.Value ?? "", StringComparison.Ordinal))
+            .Select(v => new ValueCorrectionDto(v.FieldKey, v.RowIndex, _edits[(v.FieldKey, v.RowIndex)]))
+            .ToList();
+        var user = (await Auth.GetAuthenticationStateAsync()).User;
+        try
+        {
+            await Worksheets.SaveCorrectionsAsync(Id, new SaveCorrectionsRequest(corrections, verify, _detail.RowVersion), CurrentUser.Name(user));
+            if (verify)
+            {
+                var next = (await Worksheets.SearchAsync("NeedsReview", null, null, null, null, 2)).FirstOrDefault(w => w.WorksheetId != Id);
+                Nav.NavigateTo(next is null ? "review" : $"review/{next.WorksheetId}");
+                return;
+            }
+            await OnParametersSetAsync();
+            (_message, _error) = ($"Saved {corrections.Count} change(s).", false);
+        }
+        catch (ConcurrencyException ex) { (_message, _error) = (ex.Message, true); }
+        catch (Exception ex) { (_message, _error) = ("Save failed: " + ex.Message, true); }
+    }
+
+    private async Task Reject()
+    {
+        var user = (await Auth.GetAuthenticationStateAsync()).User;
+        await Worksheets.RejectAsync(Id, CurrentUser.Name(user), _rejectReason!);
+        Nav.NavigateTo("review");
+    }
+
+    private static string P(double v) => v.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static string ZoneStyle(DSI.WorkForce.Core.Templates.Zone z) =>
+        $"left:{P(z.X * 100)}%;top:{P(z.Y * 100)}%;width:{P(z.W * 100)}%;height:{P(z.H * 100)}%";
+
+    // Crops the page image with pure CSS: no server-side image processing needed.
+    private string SnippetStyle(DSI.WorkForce.Core.Templates.Zone z)
+    {
+        var aspect = z.W / (z.H * PageAspect);
+        var posX = z.W >= 1 ? 0 : z.X / (1 - z.W) * 100;
+        var posY = z.H >= 1 ? 0 : z.Y / (1 - z.H) * 100;
+        return $"background-image:url('api/worksheets/{Id}/image');background-size:{P(100 / z.W)}% {P(100 / z.H)}%;" +
+               $"background-position:{P(posX)}% {P(posY)}%;aspect-ratio:{P(aspect)}";
+    }
+}

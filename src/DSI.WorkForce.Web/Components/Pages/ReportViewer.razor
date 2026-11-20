@@ -1,0 +1,94 @@
+@page "/reports"
+@attribute [Authorize(Policy = Policies.Reviewer)]
+@inject ReportRepository ReportRepo
+
+<PageTitle>Reports - DSI WorkForce</PageTitle>
+<h1>Reports</h1>
+
+<div class="filters">
+    <label>Report
+        <select @bind="_code">
+            @foreach (var r in _reports) { <option value="@r.Code">@r.Title</option> }
+        </select>
+    </label>
+    <label>From <input type="date" @bind="_from" /></label>
+    <label>To <input type="date" @bind="_to" /></label>
+    <label>Shift <input @bind="_shift" size="5" placeholder="2-10" /></label>
+    <label>Press <input @bind="_resource" size="6" /></label>
+    <label>EPF <input @bind="_epf" size="6" /></label>
+    <button class="btn primary" @onclick="Run">Show</button>
+    @if (_result is not null)
+    {
+        <a class="btn" href="@ExportUrl()" target="_blank">Export to Excel</a>
+    }
+</div>
+
+@if (_error is not null) { <p class="error">@_error</p> }
+@if (_result is not null)
+{
+    <p class="muted">@_result.Rows.Count row(s). Same data as SQL view <code>rpt.vw_@(_code)</code> - open it in SSMS or connect Excel / Power BI directly.</p>
+    <div class="excel-wrap">
+        <table class="excel">
+            <thead>
+                <tr><th class="rownum"></th>@foreach (var c in _result.Columns) { <th>@c.Header</th> }</tr>
+            </thead>
+            <tbody>
+                @for (var i = 0; i < _result.Rows.Count; i++)
+                {
+                    var row = _result.Rows[i];
+                    <tr>
+                        <td class="rownum">@(i + 1)</td>
+                        @for (var c = 0; c < row.Length; c++)
+                        {
+                            var col = _result.Columns[c];
+                            @if (col.Header == ReportViewSqlBuilder.SheetIdColumn && row[c] is not null)
+                            {
+                                <td><a href="review/@row[c]">@row[c]</a></td>
+                            }
+                            else
+                            {
+                                <td class="@(row[c] is decimal or int or long ? "num" : "")">@Format(row[c], col.Format)</td>
+                            }
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<ReportDefinition> _reports = new();
+    private string _code = "";
+    private DateOnly _from = DateOnly.FromDateTime(DateTime.Today.AddDays(-1));
+    private DateOnly _to = DateOnly.FromDateTime(DateTime.Today);
+    private string? _shift, _resource, _epf, _error;
+    private ReportResultDto? _result;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _reports = (await ReportRepo.GetAllAsync()).ToList();
+        _code = _reports.FirstOrDefault()?.Code ?? "";
+    }
+
+    private async Task Run()
+    {
+        _error = null;
+        try { _result = await ReportRepo.QueryAsync(new ReportQuery(_code, _from, _to, _shift, _resource, _epf)); }
+        catch (Exception ex) { _error = ex.Message; _result = null; }
+    }
+
+    private string ExportUrl() =>
+        $"api/reports/{Uri.EscapeDataString(_code)}/export?from={_from:yyyy-MM-dd}&to={_to:yyyy-MM-dd}" +
+        $"&shift={Uri.EscapeDataString(_shift ?? "")}&resourceNo={Uri.EscapeDataString(_resource ?? "")}&epfNo={Uri.EscapeDataString(_epf ?? "")}";
+
+    private static string Format(object? v, string? fmt) => v switch
+    {
+        null => "",
+        DateTime d => d.ToString(string.IsNullOrEmpty(fmt) ? "dd/MM/yyyy" : fmt, CultureInfo.InvariantCulture),
+        IFormattable f when !string.IsNullOrEmpty(fmt) => f.ToString(fmt, CultureInfo.InvariantCulture),
+        decimal m => m.ToString("0.##", CultureInfo.InvariantCulture),
+        bool b => b ? "✓" : "",
+        _ => v.ToString() ?? "",
+    };
+}

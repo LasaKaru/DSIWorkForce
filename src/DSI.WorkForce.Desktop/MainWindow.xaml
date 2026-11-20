@@ -1,0 +1,141 @@
+<Window x:Class="DSI.WorkForce.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DSI WorkForce" Height="860" Width="1400" WindowStartupLocation="CenterScreen"
+        Loaded="OnLoaded">
+    <TabControl Margin="6">
+
+        <!-- ===================== Scan station ===================== -->
+        <TabItem Header="Scan station" DataContext="{Binding Scan}">
+            <DockPanel Margin="10">
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                    <Button Content="Add scanned files…" Command="{Binding AddFilesCommand}" />
+                    <TextBlock Text="Scanner output folder:" VerticalAlignment="Center" Margin="12,0,4,0" />
+                    <TextBox Text="{Binding WatchFolder, UpdateSourceTrigger=PropertyChanged}" Width="320" VerticalContentAlignment="Center" />
+                    <CheckBox Content="Upload automatically" IsChecked="{Binding AutoUpload}" VerticalAlignment="Center" Margin="10,0" />
+                    <Button Content="Upload folder now" Command="{Binding UploadWatchFolderNowCommand}" />
+                </StackPanel>
+                <Border DockPanel.Dock="Top" Background="#F6F8FA" Padding="10" Margin="0,0,0,10">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Margin="0,0,24,0"><Run Text="Sheets today: " /><Run Text="{Binding Dashboard.SheetsToday, Mode=OneWay}" FontWeight="Bold" /></TextBlock>
+                        <TextBlock Margin="0,0,24,0"><Run Text="Auto-approved: " /><Run Text="{Binding Dashboard.AutoApprovedToday, Mode=OneWay}" FontWeight="Bold" Foreground="#1A7F37" /></TextBlock>
+                        <TextBlock Margin="0,0,24,0"><Run Text="Waiting for review: " /><Run Text="{Binding Dashboard.NeedsReviewTotal, Mode=OneWay}" FontWeight="Bold" Foreground="#B26B00" /></TextBlock>
+                        <TextBlock Margin="0,0,24,0"><Run Text="Queued files: " /><Run Text="{Binding Dashboard.PendingFiles, Mode=OneWay}" FontWeight="Bold" /></TextBlock>
+                        <TextBlock><Run Text="Failed files: " /><Run Text="{Binding Dashboard.FailedFiles, Mode=OneWay}" FontWeight="Bold" Foreground="#B42318" /></TextBlock>
+                    </StackPanel>
+                </Border>
+                <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Style="{StaticResource Muted}" Margin="0,6,0,0" />
+                <DataGrid ItemsSource="{Binding Results}" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="File" Binding="{Binding FileName}" Width="2*" />
+                        <DataGridCheckBoxColumn Header="Accepted" Binding="{Binding Accepted}" Width="80" />
+                        <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="3*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </TabItem>
+
+        <!-- ===================== Review ===================== -->
+        <TabItem Header="Review" DataContext="{Binding Review}">
+            <Grid Margin="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="330" />
+                    <ColumnDefinition Width="5" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="5" />
+                    <ColumnDefinition Width="1.1*" />
+                </Grid.ColumnDefinitions>
+
+                <DockPanel Grid.Column="0">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                        <ComboBox ItemsSource="{Binding Statuses}" SelectedItem="{Binding StatusFilter}" Width="140" />
+                        <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="6,0,0,0" />
+                    </StackPanel>
+                    <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Style="{StaticResource Muted}" TextWrapping="Wrap" />
+                    <DataGrid ItemsSource="{Binding Queue}" SelectedItem="{Binding SelectedSheet}" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Sheet" Binding="{Binding WorksheetId}" />
+                            <DataGridTextColumn Header="Press" Binding="{Binding ResourceNo}" />
+                            <DataGridTextColumn Header="EPF" Binding="{Binding EpfNo}" />
+                            <DataGridTextColumn Header="Issues" Binding="{Binding OpenIssues}" />
+                            <DataGridTextColumn Header="Conf." Binding="{Binding MinConfidence, StringFormat={}{0:P0}}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+
+                <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" />
+
+                <ScrollViewer Grid.Column="2" HorizontalScrollBarVisibility="Auto">
+                    <Image Source="{Binding PageImage}" Stretch="Uniform" />
+                </ScrollViewer>
+
+                <GridSplitter Grid.Column="3" HorizontalAlignment="Stretch" />
+
+                <DockPanel Grid.Column="4">
+                    <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Issues}" Margin="0,0,0,6">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock TextWrapping="Wrap" Foreground="#B42318"><Run Text="{Binding Code, Mode=OneWay}" FontWeight="Bold" /> <Run Text="{Binding FieldKey, Mode=OneWay}" /> <Run Text="{Binding Message, Mode=OneWay}" /></TextBlock>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border DockPanel.Dock="Top" BorderBrush="#D0D7DE" BorderThickness="1" Height="90" Margin="0,0,0,6">
+                        <Image Source="{Binding Snippet}" Stretch="Uniform" />
+                    </Border>
+                    <CheckBox DockPanel.Dock="Top" Content="Show all fields" IsChecked="{Binding ShowAllFields}" Margin="0,0,0,6" />
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="Save" Command="{Binding SaveCommand}" />
+                        <Button Content="Verify ✓ and next" Command="{Binding VerifyAndNextCommand}" FontWeight="Bold" />
+                        <TextBox Text="{Binding RejectReason, UpdateSourceTrigger=PropertyChanged}" Width="160" Margin="12,0,6,0" ToolTip="Reject reason" />
+                        <Button Content="Reject" Command="{Binding RejectCommand}" Foreground="#B42318" />
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding Fields}" SelectedItem="{Binding SelectedField}" AutoGenerateColumns="False" HeadersVisibility="Column"
+                              CanUserAddRows="False" CanUserDeleteRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Group" Binding="{Binding Group}" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Field" Binding="{Binding Label}" IsReadOnly="True" Width="2*" />
+                            <DataGridTextColumn Header="Read by OCR" Binding="{Binding Read}" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Value" Binding="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Width="1.5*" />
+                            <DataGridTextColumn Header="Conf." Binding="{Binding Confidence, StringFormat={}{0:P0}}" IsReadOnly="True" />
+                        </DataGrid.Columns>
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding NeedsAttention}" Value="True">
+                                        <Setter Property="Background" Value="#FFFBEA" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                    </DataGrid>
+                </DockPanel>
+            </Grid>
+        </TabItem>
+
+        <!-- ===================== Reports (Excel-like) ===================== -->
+        <TabItem Header="Reports" DataContext="{Binding Reports}">
+            <DockPanel Margin="10">
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                    <ComboBox ItemsSource="{Binding Reports}" SelectedItem="{Binding SelectedReport}" DisplayMemberPath="Title" Width="220" />
+                    <TextBlock Text="From" VerticalAlignment="Center" Margin="12,0,4,0" />
+                    <DatePicker SelectedDate="{Binding From}" SelectedDateFormat="Short" />
+                    <TextBlock Text="To" VerticalAlignment="Center" Margin="8,0,4,0" />
+                    <DatePicker SelectedDate="{Binding To}" SelectedDateFormat="Short" />
+                    <TextBlock Text="Shift" VerticalAlignment="Center" Margin="8,0,4,0" />
+                    <TextBox Text="{Binding Shift}" Width="50" VerticalContentAlignment="Center" />
+                    <TextBlock Text="Press" VerticalAlignment="Center" Margin="8,0,4,0" />
+                    <TextBox Text="{Binding ResourceNo}" Width="60" VerticalContentAlignment="Center" />
+                    <TextBlock Text="EPF" VerticalAlignment="Center" Margin="8,0,4,0" />
+                    <TextBox Text="{Binding EpfNo}" Width="60" VerticalContentAlignment="Center" Margin="0,0,12,0" />
+                    <Button Content="Show" Command="{Binding RunCommand}" FontWeight="Bold" />
+                    <Button Content="Export to Excel…" Command="{Binding ExportCommand}" />
+                </StackPanel>
+                <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Style="{StaticResource Muted}" Margin="0,6,0,0" />
+                <DataGrid x:Name="ReportGrid" ItemsSource="{Binding Table}" AutoGenerateColumns="True" IsReadOnly="True"
+                          AutoGeneratingColumn="OnReportColumn" FrozenColumnCount="1" GridLinesVisibility="All"
+                          HorizontalGridLinesBrush="#D9D9D9" VerticalGridLinesBrush="#D9D9D9" AlternatingRowBackground="#F7FBFF"
+                          EnableRowVirtualization="True" EnableColumnVirtualization="True" />
+            </DockPanel>
+        </TabItem>
+    </TabControl>
+</Window>

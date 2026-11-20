@@ -1,0 +1,6 @@
+{
+  "ApiBaseUrl": "https://dsi-workforce.yourcompany.local/",
+  "TemplateCode": "PC-011-A",
+  "WatchFolder": "C:\\Scans\\Out",
+  "AutoUploadWatchedFolder": false
+}
