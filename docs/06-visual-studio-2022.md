@@ -3,6 +3,9 @@
 This guide takes you from a fresh Windows PC to the whole system running on your machine:
 database, Worker, web app and WPF app. It takes about 30–45 minutes the first time.
 
+**Short version:** install VS 2022 (with LocalDB) → open `DSIWorkForce.sln` → set **Web + Worker** as startup projects (step 5) → **F5**. The database is created automatically
+in `(localdb)\MSSQLLocalDB` with Windows authentication.
+
 ---
 
 ## 1. Install the prerequisites (one time)
@@ -53,8 +56,9 @@ DSI.WorkForce.Tests         unit tests
 
 ---
 
-## 3. Create the local folders
+## 3. Local folders
 
+The Worker creates these folders automatically on first start (you can also create them yourself).
 The development settings (`appsettings.Development.json` of Worker and Web) use these folders.
 In **View → Terminal** (PowerShell):
 
@@ -74,76 +78,84 @@ Copy your sample scan (e.g. `DSI OCR.pdf`) to `C:\DSIWorkForce\samples\sample.pd
 
 ---
 
-## 4. Create the database
+## 4. Database: created automatically (Windows authentication, LocalDB)
 
-1. In Solution Explorer right-click **DSI.WorkForce.DbMigrator → Set as Startup Project**.
-2. In the toolbar, open the dropdown next to the green ▶ button and choose the launch profile:
-   * **Create/upgrade DB (LocalDB)**, if you use LocalDB, or
-   * **Create/upgrade DB (localhost)**, if you installed SQL Server Developer / Express as the default instance.
-   * For another server, edit `src/DSI.WorkForce.DbMigrator/Properties/launchSettings.json` and change `Server=...`.
-3. Press **Ctrl+F5** (run without debugging). You should see:
+All projects use the same connection string, with **Windows authentication** (your Windows login, no SQL password):
 
 ```
-8 migration script(s) to apply.
-...
-Template PC-011-A v1: imported - 37 fields
-Report DailyEfficiency: imported, view rpt.vw_DailyEfficiency built
-Report ShiftSummary: imported, view rpt.vw_ShiftSummary built
-All report views rebuilt. Done.
+Server=(localdb)\MSSQLLocalDB;Database=DSIWorkForce;Integrated Security=true;TrustServerCertificate=true;Connect Timeout=60
 ```
 
-You can run it again any time. It only applies new scripts. Use the profile
-**Re-import report layouts** to overwrite report columns with the JSON files in `templates/reports`.
+It is set in `appsettings.json` / `appsettings.Development.json` of **Web**, **Worker** and **DbMigrator**.
 
-### Add test master data (recommended)
+When you press **F5**, the Web app and the Worker (Development mode: `"AutoMigrate": true`) automatically:
 
-Open `database/SampleMasterData.sql`. In Visual Studio you can use **View → SQL Server Object Explorer**:
-connect to `(localdb)\MSSQLLocalDB` or `localhost`, right-click database **DSIWorkForce → New Query**, paste the
-script and press the ▶ *Execute* button. Or open it in SSMS. Also add a test employee:
+1. **create the database `DSIWorkForce`** in LocalDB if it does not exist,
+2. apply new migration scripts (tables, views, roles),
+3. import the PC-011-A form template and the report layouts (*Daily Efficiency*, *Shift Summary*),
+4. build the report views `rpt.vw_DailyEfficiency`, `rpt.vw_ShiftSummary`,
+5. load **sample master data** (`"SeedSampleData": true`): presses P 24–P 26, two tyre items with standard
+   rate 26/hour, and test employee **EPF 1234 "Test Operator"**.
 
-```sql
-INSERT dsi.Employee (EpfNo, Name, Section) VALUES (N'1234', N'Test Operator', N'Press');
+Nothing else is needed. The Web/Worker log shows `Database is up to date.` when done.
+The first start of LocalDB can take 10–30 seconds.
+
+Check that LocalDB is installed (Developer PowerShell):
+
+```powershell
+sqllocaldb info              # should list MSSQLLocalDB
+sqllocaldb start MSSQLLocalDB
 ```
+
+If it is missing: Visual Studio Installer → *Modify* → **Data storage and processing** workload (or *Individual
+components → SQL Server Express LocalDB*).
+
+**Optional: DbMigrator.** You only need it to prepare a database without starting the apps, or to reset report
+layouts. Set it as startup project and choose a launch profile from the ▶ dropdown:
+*LocalDB (appsettings.json)*, *LocalDB + sample data*, or *Re-import report layouts*. Then press Ctrl+F5.
+
+> LocalDB is for development on your own PC. On the server, use a real SQL Server and set
+> `"AutoMigrate": false`. Run the DbMigrator once per release (see [05-deployment.md](05-deployment.md)).
 
 ---
 
-## 5. Point Worker and Web at your database
+## 5. What to set as the startup project
 
-Edit the **connection string** in both files if you are **not** using `localhost`:
+You need **two programs running at the same time**: the **Worker** (reads the scans) and the **Web** app
+(review, reports). The WPF app is optional.
 
-* `src/DSI.WorkForce.Worker/appsettings.Development.json`
-* `src/DSI.WorkForce.Web/appsettings.Development.json`
-
-```json
-"Database": {
-  "ConnectionString": "Server=(localdb)\\MSSQLLocalDB;Database=DSIWorkForce;Integrated Security=true;TrustServerCertificate=true"
-}
-```
-
-(In JSON, `\` must be written as `\\`.)
-
-In Development the web app runs **without login** (`"Auth": { "Mode": "None" }`). Production uses Windows login.
-
----
-
-## 6. Run Worker + Web (+ WPF) together
-
-1. Right-click the **Solution** → **Configure Startup Projects…** → **Multiple startup projects**:
+1. Right-click the **Solution 'DSIWorkForce'** → **Configure Startup Projects…**
+2. Choose **Multiple startup projects** and set:
 
    | Project | Action |
    |---|---|
-   | DSI.WorkForce.Worker | **Start** |
-   | DSI.WorkForce.Web | **Start** |
-   | DSI.WorkForce.Desktop | Start (optional) |
-   | all others | None |
+   | **DSI.WorkForce.Web** | **Start** |
+   | **DSI.WorkForce.Worker** | **Start** |
+   | DSI.WorkForce.Desktop | Start (optional, WPF app) |
+   | DSI.WorkForce.Core / Data / Extraction / DbMigrator / Tests | None |
 
-2. For the Web project choose the **https** launch profile (toolbar dropdown) → URL `https://localhost:7082`.
-3. Press **F5**.
+3. Optional: use the arrows to move **Web** to the top, so it starts first.
+4. Click **OK**. The toolbar ▶ button now says **Start**.
 
-   * A console window opens for the **Worker**: `Watching C:\DSIWorkForce\hot\PC-011-A for template PC-011-A`.
-   * The browser opens the **Dashboard**. *Worker heartbeat* shows a time, which means both are talking to the database.
-   * The **WPF** window opens (its API address is in `src/DSI.WorkForce.Desktop/desktopsettings.json`,
-     default `https://localhost:7082/`).
+> Only want to look at the website? Set **DSI.WorkForce.Web** alone as startup project (right-click →
+> *Set as Startup Project*). Scans won't be processed without the Worker, though.
+
+---
+
+## 6. Run it
+
+1. Press **F5** (with debugging) or **Ctrl+F5** (faster, without debugging).
+2. A console window opens for the **Worker**:
+   ```
+   Database: (localdb)\MSSQLLocalDB / DSIWorkForce (Windows authentication: True)
+   ... Database is up to date.
+   Watching C:\DSIWorkForce\hot\PC-011-A for template PC-011-A
+   Extraction worker ... started
+   ```
+3. The browser opens the **Dashboard** at `https://localhost:7082` (in Development there is no login).
+   *Worker heartbeat* shows a time, which means Web and Worker both reach the database.
+4. If you started it, the **WPF** window opens. It talks to `https://localhost:7082/` (`desktopsettings.json`).
+5. Stop everything with **Shift+F5**.
 
 ---
 
@@ -155,8 +167,8 @@ In Development the web app runs **without login** (`"Auth": { "Mode": "None" }`)
    `Queued sample.pdf ...` then `Page 1/1 -> Worksheet 1: NeedsReview, ...`.
 3. **Review** (web *Review* tab or WPF *Review* tab) → open the sheet:
    * left: the straightened scan; the box you are editing is highlighted;
-   * right: only the fields that need a human. Type the date (as written, e.g. `26/11/17`), press, EPF, shift,
-     tyre, total…;
+   * right: only the fields that need a human. Type the date (as written, e.g. `26/11/17`), press (`P 24`),
+     EPF (`1234` = the sample test employee), shift (`2-10`), tyre (`29 2.10 SRI 94 Full Black`), total…;
    * **hourly grid**: type the number of each filled cell. Row sums update live, and the total turns ✓ when it matches
      *Total Production*;
    * **Verify ✓ & next**.
@@ -179,7 +191,7 @@ In Development the web app runs **without login** (`"Auth": { "Mode": "None" }`)
 2. Open `C:\DSIWorkForce\samples\calibration\sample_p1_overlay.png`:
    green = read automatically, red = handwriting to read/type, orange = empty, grey = not found.
 3. If a box is misplaced, change its `zone` in `templates/forms/PC-011-A.v1.json`, run again, and repeat.
-   When happy, run the DbMigrator (step 4) so the database gets the new layout.
+   When happy, restart the apps (or run the DbMigrator) so the database gets the new layout.
 
 To calibrate another file: Worker project → **Properties → Debug → Open debug launch profiles UI** → edit
 *Command line arguments*: `--calibrate C:\path\file.pdf`.
@@ -225,8 +237,9 @@ Restart the Worker. New sheets will arrive with most fields already filled in.
 
 | Symptom | Fix |
 |---|---|
-| DbMigrator: *Cannot connect to SQL Server* | Wrong server name, or SQL Server not running. For LocalDB run `sqllocaldb start MSSQLLocalDB`. |
-| Worker: *No active template 'PC-011-A'* | Run the DbMigrator (step 4). |
+| *Automatic database setup failed* / *Cannot connect to SQL Server* | LocalDB not installed or not started: `sqllocaldb info`, `sqllocaldb start MSSQLLocalDB` (step 4). |
+| *Login failed for user 'DOMAIN\you'* | You are using a real SQL Server: ask the DBA to add your Windows login, or switch back to LocalDB. |
+| Worker: *No active template 'PC-011-A'* | The automatic setup did not run or failed: check the first lines of the Worker log, or run the DbMigrator (step 4). |
 | Worker: *Hot folder ... not reachable* | Create the folders (step 3) or fix `Worker:HotFolders` in `appsettings.Development.json`. |
 | Dashboard: *Worker heartbeat: never* | The Worker isn't running, or it uses a different connection string than the Web app. |
 | Sheet status *NeedsReview* with *ALIGNMENT_FAILED* | Page is not PC-011-A, or very skewed/cut off. Rescan; check with *Calibrate*. |

@@ -5,6 +5,8 @@
   <ItemGroup>
     <!-- Versioned SQL migration scripts executed in order by DbUp. -->
     <EmbeddedResource Include="Scripts\**\*.sql" />
+    <!-- Optional development seed data (not a migration). -->
+    <EmbeddedResource Include="..\..\database\SampleMasterData.sql" LogicalName="DSI.WorkForce.Data.Seed.SampleMasterData.sql" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Dapper" />

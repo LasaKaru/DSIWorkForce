@@ -13,7 +13,7 @@ public static class DatabaseMigrator
 
         var upgrader = DeployChanges.To
             .SqlDatabase(connectionString)
-            .WithScriptsEmbeddedInAssembly(typeof(DatabaseMigrator).Assembly, name => name.EndsWith(".sql", StringComparison.OrdinalIgnoreCase))
+            .WithScriptsEmbeddedInAssembly(typeof(DatabaseMigrator).Assembly, name => name.Contains(".Scripts.") && name.EndsWith(".sql", StringComparison.OrdinalIgnoreCase))
             .WithTransactionPerScript()
             .LogScriptOutput()
             .LogTo(new CallbackLog(log))

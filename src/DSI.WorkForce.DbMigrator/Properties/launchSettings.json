@@ -1,16 +1,15 @@
 {
   "profiles": {
-    "Create/upgrade DB (localhost)": {
-      "commandName": "Project",
-      "commandLineArgs": "--create-db \"--Database:ConnectionString=Server=localhost;Database=DSIWorkForce;Integrated Security=true;TrustServerCertificate=true\""
+    "LocalDB (appsettings.json)": {
+      "commandName": "Project"
     },
-    "Create/upgrade DB (LocalDB)": {
+    "LocalDB + sample data": {
       "commandName": "Project",
-      "commandLineArgs": "--create-db \"--Database:ConnectionString=Server=(localdb)\\MSSQLLocalDB;Database=DSIWorkForce;Integrated Security=true;TrustServerCertificate=true\""
+      "commandLineArgs": "--seed-sample-data"
     },
-    "Re-import report layouts (localhost)": {
+    "Re-import report layouts": {
       "commandName": "Project",
-      "commandLineArgs": "--force-reports \"--Database:ConnectionString=Server=localhost;Database=DSIWorkForce;Integrated Security=true;TrustServerCertificate=true\""
+      "commandLineArgs": "--force-reports"
     }
   }
 }

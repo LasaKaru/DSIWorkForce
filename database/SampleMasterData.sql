@@ -25,5 +25,8 @@ USING (VALUES
 ON t.ItemCode = s.ItemCode
 WHEN NOT MATCHED THEN INSERT (ItemCode, Description, Category, StandardRatePerHour) VALUES (s.ItemCode, s.Description, s.Category, s.StandardRatePerHour);
 
--- Employees: import from HR. Example shape only:
--- INSERT dsi.Employee (EpfNo, Name, Section) VALUES (N'1234', N'Employee Name', N'Press');
+-- Employees: import from HR in production. One fictional test employee for development:
+MERGE dsi.Employee AS t
+USING (VALUES (N'1234', N'Test Operator', N'Press')) AS s (EpfNo, Name, Section)
+ON t.EpfNo = s.EpfNo
+WHEN NOT MATCHED THEN INSERT (EpfNo, Name, Section) VALUES (s.EpfNo, s.Name, s.Section);

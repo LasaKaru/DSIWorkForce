@@ -35,5 +35,8 @@ using var host = builder.Build();
 if (calibrate)
     return await CalibrationRunner.RunAsync(args, host.Services.GetRequiredService<FormExtractor>());
 
+// Development: create the database if it does not exist and bring it up to date (production: run the DbMigrator).
+await host.Services.InitializeDatabaseIfConfiguredAsync(host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup"));
+
 await host.RunAsync();
 return 0;

@@ -11,6 +11,9 @@
     <PackageReference Include="Serilog.Settings.Configuration" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\templates\**\*.json" Link="templates\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\DSI.WorkForce.Core\DSI.WorkForce.Core.csproj" />
     <ProjectReference Include="..\DSI.WorkForce.Data\DSI.WorkForce.Data.csproj" />
   </ItemGroup>

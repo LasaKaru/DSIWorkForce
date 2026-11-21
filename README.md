@@ -53,22 +53,21 @@ Measured by the integration test and the calibration tool on the real scan:
 Using Visual Studio 2022? Follow **[docs/06-visual-studio-2022.md](docs/06-visual-studio-2022.md)**. Command-line version:
 
 ```powershell
-# 1. Database (creates DSIWorkForce on your SQL Server, imports PC-011-A and the Daily Efficiency report)
-dotnet run --project src/DSI.WorkForce.DbMigrator -- --create-db --Database:ConnectionString="Server=localhost;Database=DSIWorkForce;Integrated Security=true;TrustServerCertificate=true"
+# Database: nothing to do in Development. Web and Worker create (localdb)\MSSQLLocalDB / DSIWorkForce automatically
+# (Windows authentication), apply migrations, import the template + reports and load sample master data.
+# (Manual alternative: dotnet run --project src/DSI.WorkForce.DbMigrator -- --seed-sample-data)
 
-# 2. Optional test master data
-sqlcmd -S localhost -d DSIWorkForce -E -i database/SampleMasterData.sql
+# 1. Local folders used by the development settings
+New-Item -ItemType Directory -Force -Path C:\DSIWorkForce\hot\PC-011-A, C:\DSIWorkForce\staging, C:\DSIWorkForce\duplicates, C:\DSIWorkForce\images, C:\DSIWorkForce\samples
 
-# 3. Check the template lines up with your scans (writes an overlay PNG + JSON, no DB needed)
-dotnet run --project src/DSI.WorkForce.Worker -- --calibrate C:\scans\sample.pdf
+# 2. Check the template lines up with your scans (writes an overlay PNG + JSON, no DB needed)
+dotnet run --project src/DSI.WorkForce.Worker -- --calibrate C:\DSIWorkForce\samples\sample.pdf
 
-# 4. Run the worker (watches C:\DSIWorkForce\hot\PC-011-A, see appsettings.Development.json)
+# 3. Run the worker (watches C:\DSIWorkForce\hot\PC-011-A) and, in a second terminal, the web app
 dotnet run --project src/DSI.WorkForce.Worker
+dotnet run --project src/DSI.WorkForce.Web --launch-profile https     # -> https://localhost:7082
 
-# 5. Run the web app  ->  https://localhost:xxxx  (Dashboard, Review, Reports, Upload, Report columns)
-dotnet run --project src/DSI.WorkForce.Web
-
-# 6. Desktop app: open DSIWorkForce.sln in Visual Studio 2022, start DSI.WorkForce.Desktop
+# 4. Desktop app: open DSIWorkForce.sln in Visual Studio 2022, start DSI.WorkForce.Desktop
 ```
 
 Tests: `dotnet test tests/DSI.WorkForce.Tests` (49 tests: normalization, matching, OMR, rules, report SQL,

@@ -18,7 +18,14 @@ public sealed class HotFolderIngestionService(ScanQueueRepository queue, IOption
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (_o.HotFolders.Count == 0) { log.LogWarning("No Worker:HotFolders configured - ingestion disabled."); return; }
-        foreach (var f in _o.HotFolders) log.LogInformation("Watching {Path} for template {Template}", f.Path, f.TemplateCode);
+        foreach (var f in _o.HotFolders)
+        {
+            // Local folders (e.g. C:\DSIWorkForce\hot\PC-011-A on a developer PC) are created automatically;
+            // network shares (\\server\share) must already exist.
+            if (!f.Path.StartsWith(@"\\", StringComparison.Ordinal))
+                try { Directory.CreateDirectory(f.Path); } catch (Exception ex) { log.LogWarning(ex, "Cannot create {Path}", f.Path); }
+            log.LogInformation("Watching {Path} for template {Template}", f.Path, f.TemplateCode);
+        }
 
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(_o.PollIntervalSeconds));
         do

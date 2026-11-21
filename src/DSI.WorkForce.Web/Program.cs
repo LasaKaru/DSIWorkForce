@@ -45,6 +45,9 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
+// Development: create the database if it does not exist and bring it up to date (production: run the DbMigrator).
+await app.Services.InitializeDatabaseIfConfiguredAsync(app.Logger);
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
