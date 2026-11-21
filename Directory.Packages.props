@@ -16,6 +16,8 @@
     <PackageVersion Include="Azure.AI.DocumentIntelligence" Version="1.0.0" />
     <!-- Local handwriting OCR (PaddleOCR PP-OCRv5, Apache-2.0): models ship inside the NuGet package, runs on CPU, offline. -->
     <PackageVersion Include="Sdcb.PaddleOCR" Version="3.0.1" />
+    <!-- Handwritten digit classifier for the hourly number cells (ONNX Runtime, MIT). -->
+    <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
     <PackageVersion Include="Sdcb.PaddleOCR.Models.Local" Version="3.0.1" />
     <PackageVersion Include="Sdcb.PaddleInference.runtime.win64.mkl" Version="3.1.0.54" />
     <PackageVersion Include="Sdcb.PaddleInference.runtime.linux-x64.mkl" Version="3.1.0.54" />

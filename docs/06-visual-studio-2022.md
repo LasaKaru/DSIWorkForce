@@ -239,6 +239,8 @@ Sheets read before OCR was on: open them and click **↻ Re-read**.
 
 To see what the OCR read for each box (all image variants), run the calibration (step 8) with debug logging:
 set the environment variable `Serilog__MinimumLevel__Default=Debug` in the Worker's launch profile.
+Two more tuning aids (environment variables, folder paths): `DSI_DEBUG_CROPS` saves every image sent to the text OCR,
+and `DSI_DEBUG_DIGITS` saves every hourly cell plus what the digit model read in `digits.txt`.
 
 **Second opinion for unsure boxes (optional).** Keep keys out of the code: right-click
 **DSI.WorkForce.Worker → Manage User Secrets** and add, for example:

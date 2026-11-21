@@ -46,6 +46,7 @@ public sealed class PaddleLocalRecognizer : IHandwritingRecognizer, IWarmUp, IDi
             // Pass 1 reads every box in one batched model call; passes 2-3 (other image variants) only re-read the
             // boxes that are still invalid for their field type or uncertain.
             var best = new Candidate?[requests.Count];
+            var all = Enumerable.Range(0, requests.Count).Select(_ => new List<Candidate>()).ToArray();
             var variants = Math.Clamp(_o.Variants, 1, 3);
             for (var v = 0; v < variants; v++)
             {
@@ -63,11 +64,14 @@ public sealed class PaddleLocalRecognizer : IHandwritingRecognizer, IWarmUp, IDi
                         var req = requests[todo[k]];
                         var c = Score(req, read[k].Text, read[k].Score);
                         _log.LogDebug("{Field}[{Row}] variant {Variant}: '{Text}' ({Score:0.00}) valid={Valid}", req.FieldKey, req.RowIndex, v, read[k].Text, read[k].Score, c.Valid);
+                        all[todo[k]].Add(c);
                         if (best[todo[k]] is not { } prev || c.Rank > prev.Rank) best[todo[k]] = c;
                     }
                 }
                 finally { foreach (var img in images) img.Dispose(); }
             }
+            for (var i = 0; i < requests.Count; i++)
+                if (requests[i].Type is FieldDataType.Integer or FieldDataType.Decimal) best[i] = ResolveNumeric(all[i], best[i]);
             IReadOnlyList<RecognitionResult> results = requests
                 .Select((r, i) => new RecognitionResult(r.FieldKey, r.RowIndex, best[i]?.Text, best[i]?.Confidence ?? 0m)).ToList();
             return Task.FromResult(results);
@@ -95,6 +99,22 @@ public sealed class PaddleLocalRecognizer : IHandwritingRecognizer, IWarmUp, IDi
             for (var k = 0; k < chunk.Length; k++) results[chunk[k]] = read[k];
         }
         return results;
+    }
+
+    /// <summary>
+    /// Image variants that read different numbers mean the box is uncertain. Handwriting OCR far more often drops a
+    /// character than invents one (".02" for "402"), so the reading with more digits is preferred - and its confidence
+    /// is capped so a person checks it.
+    /// </summary>
+    private static Candidate? ResolveNumeric(List<Candidate> candidates, Candidate? best)
+    {
+        var valid = candidates.Where(c => c.Valid && c.Text is not null)
+            .Select(c => (c, Value: ValueNormalizer.ParseNumber(c.Text!, integerOnly: false).Value))
+            .Where(x => x.Value is not null).ToList();
+        if (valid.Select(x => x.Value).Distinct().Count() <= 1) return best;
+        var pick = valid.Where(x => x.c.Confidence >= 0.5m).OrderByDescending(x => x.c.Text!.Count(char.IsDigit) + x.c.Text!.Count(ch => "OoDQIlSZBGHKbgqT".Contains(ch)))
+            .ThenByDescending(x => x.c.Confidence).Select(x => x.c).FirstOrDefault() ?? best;
+        return pick is null ? null : pick with { Confidence = Math.Min(pick.Confidence, 0.7m) };
     }
 
     /// <summary>A valid reading at or above this score is not re-read with other image variants.</summary>

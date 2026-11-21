@@ -1,4 +1,5 @@
 using DSI.WorkForce.Core.Templates;
+using DSI.WorkForce.Extraction.Imaging;
 using OpenCvSharp;
 
 namespace DSI.WorkForce.Extraction.Recognition.Local;
@@ -44,6 +45,9 @@ public static class HandwritingCropper
             clean.SetTo(Scalar.White, lines);
         }
 
+        // Scanner streaks / pale coloured lines crossing the box are not handwriting.
+        StrokeFilter.RemoveNonHandwriting(ink, crop, StrokeFilter.PaperLevel(crop));   // span test over box + margins
+
         // Keep ink components whose centre is inside the box; whiten everything else.
         using var labels = new Mat();
         using var stats = new Mat();
@@ -51,6 +55,15 @@ public static class HandwritingCropper
         var n = Cv2.ConnectedComponentsWithStats(ink, labels, stats, centroids);
         int x0 = int.MaxValue, y0 = int.MaxValue, x1 = 0, y1 = 0;
         using var drop = new Mat(ink.Size(), MatType.CV_8UC1, Scalar.All(0));
+        using (var removed = new Mat())
+        {
+            // Pixels removed above (streaks) must also disappear from the image the recognizer sees.
+            Cv2.Compare(ink, 0, removed, CmpType.EQ);
+            using var wasInk = new Mat();
+            Cv2.Compare(binary, 0, wasInk, CmpType.NE);
+            Cv2.BitwiseAnd(removed, wasInk, removed);
+            clean.SetTo(Scalar.White, removed);
+        }
         for (var i = 1; i < n; i++)
         {
             var area = stats.At<int>(i, (int)ConnectedComponentsTypes.Area);
@@ -88,6 +101,11 @@ public static class HandwritingCropper
             scale < 1 ? InterpolationFlags.Area : InterpolationFlags.Cubic);
         var bgr = new Mat();
         Cv2.CvtColor(resized, bgr, ColorConversionCodes.GRAY2BGR);
+        if (Environment.GetEnvironmentVariable("DSI_DEBUG_CROPS") is { } dir)   // tuning aid: what the recognizer sees
+        {
+            Directory.CreateDirectory(dir);
+            Cv2.ImWrite(Path.Combine(dir, $"{z.X:0.0000}_{z.Y:0.0000}_v{variant}.png"), bgr);
+        }
         return bgr;
     }
 }

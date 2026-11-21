@@ -50,6 +50,9 @@ Measured by the integration test and the calibration tool on the real scan:
   a human: on the sample, 67 hourly cells + 24 other boxes (date, press, EPF, shift, target, name, tyre, mould
   log, specs, 3 reasons, total).
 * The orange column (නිසැදු වාර ගණන) is captured as **Rejection** per hour and shown as a report column.
+* **Second test scan** (scanner streaks, beige paper on a white scan background, numbers written in the hourly grid):
+  frame found despite the streaks; **63 of 65 handwritten hourly digits correct** (dedicated digit model) with
+  **no false values in empty cells**. The remaining errors and every other uncertain box are highlighted for review.
 * **Handwriting OCR runs locally by default** (PaddleOCR PP-OCRv5 on the CPU, free, offline). On the sample it read
   13 of 13 key numeric values correctly: EPF 5916, press P-24, shift 2-10, target 390, total 402, mould log 24…19,
   steam pressure 15-0150. The date (slashes) and messy free text are the weak spots. Those go to review or to an
@@ -91,6 +94,8 @@ Scans are not committed because they contain employee data.
 5. [Deployment & operations](docs/05-deployment.md): IIS, Windows Service, accounts, sizing, backups, monitoring.
 6. [Run it in Visual Studio 2022](docs/06-visual-studio-2022.md): install, create the DB, run Worker + Web + WPF, try a scan.
 7. [Users, permissions & licensing](docs/07-users-permissions-licensing.md): sign-in, permissions, master data, license keys and the generator.
+
+Open-source components and licences: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## Sign-in, permissions and license
 

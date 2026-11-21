@@ -7,6 +7,8 @@ namespace DSI.WorkForce.Extraction.Imaging;
 public sealed class InkMeter : IDisposable
 {
     private readonly Mat _binary = new();
+    private readonly Mat _gray;
+    private readonly double _paper;
     private Mat? _withoutLines;
 
     public int Width => _binary.Width;
@@ -14,6 +16,8 @@ public sealed class InkMeter : IDisposable
 
     public InkMeter(Mat alignedGray, OmrSettings s)
     {
+        _gray = alignedGray;
+        _paper = StrokeFilter.PaperLevel(alignedGray);
         var block = s.BinarizeBlockSize % 2 == 1 ? s.BinarizeBlockSize : s.BinarizeBlockSize + 1;
         Cv2.AdaptiveThreshold(alignedGray, _binary, 255, AdaptiveThresholdTypes.GaussianC, ThresholdTypes.BinaryInv, block, s.BinarizeC);
     }
@@ -36,8 +40,15 @@ public sealed class InkMeter : IDisposable
         EnsureLinesRemoved();
         var rect = ToRect(z, inset);
         if (rect.Width <= 0 || rect.Height <= 0) return 0;
-        using var roi = new Mat(_withoutLines!, rect);
-        return Cv2.CountNonZero(roi) / (double)(rect.Width * rect.Height);
+        // Drop scanner streaks / pale lines. A streak crosses the box AND the space above and below it, so the filter
+        // looks at a taller area; a tall handwritten digit filling a tight box is not mistaken for a streak.
+        var grow = (int)(rect.Height * 0.35);
+        var outer = new Rect(rect.X, rect.Y - grow, rect.Width, rect.Height + 2 * grow).Intersect(new Rect(0, 0, Width, Height));
+        using var roi = new Mat(_withoutLines!, outer).Clone();   // the filter edits in place
+        using var grayRoi = new Mat(_gray, outer);
+        StrokeFilter.RemoveNonHandwriting(roi, grayRoi, _paper);
+        using var inside = new Mat(roi, new Rect(rect.X - outer.X, rect.Y - outer.Y, rect.Width, rect.Height));
+        return Cv2.CountNonZero(inside) / (double)(rect.Width * rect.Height);
     }
 
     private void EnsureLinesRemoved()

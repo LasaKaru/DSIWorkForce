@@ -15,13 +15,30 @@
 ## Processing pipeline (per page)
 
 1. **Render**: PDF page → 200 DPI grayscale (PDFium). Pages are rendered one at a time and disposed.
-2. **Align**: find the thick printed border of PC-011-A, perspective-warp it onto an 1800×2642 canvas.
-   Every field zone is a fraction (0..1) of that canvas, so scanner DPI, skew and small rotations don't matter.
-3. **OMR**: adaptive threshold → ink ratio per box.
+2. **Align**: find the printed frame of PC-011-A and perspective-warp it onto an 1800×2642 canvas.
+   Every field zone is a fraction (0..1) of that canvas, so scanner DPI, page position, skew and small rotations
+   don't matter.
+   * Primary method: the long, **dark printed lines** of the form (Hough line detection). The outermost ones are the
+     frame, and their intersections are the corners. Light features (the paper edge on a white scan background,
+     coloured scanner streaks) never count as dark, and vertical lines that run past the form (streaks from dirty
+     scanner glass) are ignored.
+   * Fallback: largest outer contour. Each candidate must have the form's width/height ratio, and after warping the
+     frame must lie on all four edges (quality check), otherwise the sheet is flagged `ALIGNMENT_FAILED`.
+3. **Table grid snapping**: inside every table zone the real printed row and column lines are detected, and each cell
+   boundary snaps to its own line (the printed hourly grid's columns are not all equal width, print runs vary). Cells
+   therefore never straddle a table line.
+3b. **OMR**: adaptive threshold → ink ratio per box.
    * Check-list boxes and signatures: marked / empty / uncertain.
    * (Optional `OmrTally` extractor for forms where operators tick cells instead of writing numbers.)
-4. **Blank detection**: for handwriting boxes, printed table lines are removed (morphology) and the remaining ink
-   is measured. Empty boxes are stored as "confidently empty" and never sent to OCR or to a human.
+4. **Blank detection**: for handwriting boxes, printed table lines are removed (morphology), then ink blobs that are
+   not handwriting are dropped: pale blobs (coloured streaks) and thin blobs that cross the box and the space above
+   and below it (scanner streaks). The remaining ink is measured. Empty boxes are stored as "confidently empty" and
+   never sent to OCR or to a human.
+4b. **Hourly number cells**: a dedicated handwritten-digit model (MNIST CNN on ONNX Runtime) reads each cell:
+   cleaned crop → split into digits → 28×28 normalisation → classification. Streak pieces are recognised because they
+   continue straight into the cells above or below. When the digit model is unsure (< 90%) the text OCR gives a second
+   opinion: agreement = trusted, disagreement = highlighted for review. On a streaky test scan: 63/65 cell digits
+   correct, no false values in empty cells (the general text OCR alone: ~70%).
 5. **Handwriting** (only non-empty boxes, including each filled cell of the 8 × 12 hourly grid) via `IHandwritingRecognizer`:
    * `Local` (default): PaddleOCR PP-OCRv5 on the CPU inside the Worker. Each box is cleaned first (printed lines
      erased, cropped to the ink, scaled), read in a batch, and re-read with up to 2 other image variants when the result

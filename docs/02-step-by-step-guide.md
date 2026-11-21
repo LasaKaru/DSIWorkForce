@@ -52,6 +52,8 @@ database role `dsi_app` (see `database/ExampleQueries.sql`).
 * 200–300 DPI, **grayscale** (not black & white: OMR thresholds work better on gray), PDF output.
 * Multi-page PDFs are fine (one sheet per page). Duplex off unless the back is used.
 * Auto-rotate/deskew on if the scanner supports it.
+* **Clean the scanner glass / ADF rollers regularly.** Coloured vertical streaks come from dust on the glass. The
+  system removes them, but every streak through a written number makes that number harder to read.
 * Save directly into the hot folder (or into a local folder uploaded by the WPF *Scan station*).
 
 ## Step 5: Calibrate the template on real scans
@@ -59,6 +61,7 @@ database role `dsi_app` (see `database/ExampleQueries.sql`).
 ```powershell
 DSI.WorkForce.Worker.exe --calibrate C:\samples\batch1.pdf --out C:\samples\calibration
 ```
+Alignment now copes with streaky scans, a white border around the page and forms placed anywhere on the page.
 Open `*_overlay.png`: every box of the form has a rectangle: green = value found, orange = empty, red = needs review,
 and every hourly cell has its own rectangle. If a zone is off, adjust its `zone` in
 `templates/forms/PC-011-A.v1.json` (fractions of the form border: x, y, w, h). Try 20–30 sheets from different

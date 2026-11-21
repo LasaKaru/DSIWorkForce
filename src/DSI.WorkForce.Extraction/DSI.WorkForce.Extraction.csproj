@@ -10,6 +10,7 @@
     <PackageReference Include="PDFtoImage" />
     <PackageReference Include="Azure.AI.DocumentIntelligence" />
     <PackageReference Include="Sdcb.PaddleOCR" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
     <PackageReference Include="Sdcb.PaddleOCR.Models.Local" />
     <!-- Native Paddle inference engine for Windows x64 (production). -->
     <PackageReference Include="Sdcb.PaddleInference.runtime.win64.mkl" />
@@ -19,6 +20,10 @@
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- MNIST digit model from the ONNX Model Zoo (MIT licence), 26 KB, embedded so nothing needs to be installed. -->
+    <EmbeddedResource Include="Recognition\Digits\Model\mnist-12.onnx" LogicalName="DSI.WorkForce.Extraction.mnist-12.onnx" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DSI.WorkForce.Core\DSI.WorkForce.Core.csproj" />

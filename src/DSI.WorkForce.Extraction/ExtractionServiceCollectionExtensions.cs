@@ -32,6 +32,7 @@ public static class ExtractionServiceCollectionExtensions
                 sp.GetRequiredService<ILoggerFactory>().CreateLogger<CascadingRecognizer>());
         });
 
+        services.AddSingleton<Recognition.Digits.DigitCellReader>();
         services.AddSingleton<FormExtractor>();
         return services;
     }

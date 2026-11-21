@@ -19,6 +19,12 @@ public sealed class ExtractionOptions
 
     public LocalOcrOptions Local { get; set; } = new();
 
+    /// <summary>
+    /// Read the hourly number cells with the dedicated handwritten-digit model (MNIST CNN) first; the text recognizer
+    /// is only asked when the digit model is unsure. Much more accurate for single digits (64/65 vs ~70 % on a test scan).
+    /// </summary>
+    public bool UseDigitModel { get; set; } = true;
+
     public int AlignedImageJpegQuality { get; set; } = 75;
 
     /// <summary>Ink ratio below which a handwriting box is treated as empty (skips the recognizer call).</summary>
