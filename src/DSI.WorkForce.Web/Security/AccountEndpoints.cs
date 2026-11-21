@@ -15,8 +15,14 @@ public static class AccountEndpoints
         app.MapPost("/account/login", async ([FromForm] string userName, [FromForm] string password, [FromForm] string? returnUrl,
             UserRepository users, HttpContext ctx, ILoggerFactory lf) =>
         {
-            var (outcome, user, perms) = await users.LoginAsync(userName ?? "", password ?? "");
             var log = lf.CreateLogger("Account");
+            LoginOutcome outcome; UserAuthRecord? user; IReadOnlyList<string> perms;
+            try { (outcome, user, perms) = await users.LoginAsync(userName ?? "", password ?? ""); }
+            catch (Exception ex)
+            {
+                log.LogError(ex, "Sign-in failed: database error");
+                return Results.Redirect($"/account/login?error={Uri.EscapeDataString("The server cannot reach the database. Try again or contact your administrator.")}");
+            }
             if (outcome != LoginOutcome.Success)
             {
                 log.LogWarning("Failed sign-in for {User}: {Outcome}", userName, outcome);

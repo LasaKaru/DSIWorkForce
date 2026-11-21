@@ -41,6 +41,7 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapHealthChecks("/health").AllowAnonymous();
+app.MapGet("/favicon.ico", () => Results.Redirect("/img/favicon.svg", permanent: true)).AllowAnonymous();
 app.MapAccountEndpoints();
 app.MapDsiApi();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();

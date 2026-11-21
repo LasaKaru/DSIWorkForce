@@ -1,0 +1,25 @@
+@inherits LayoutComponentBase
+@layout BareLayout
+@inject NavigationManager Nav
+@*
+    Sign-in / password pages post real HTML forms (cookies can only be set by a normal HTTP request, and the form needs
+    the anti-forgery token). If one of these pages is reached by in-app navigation from an interactive page, it would be
+    rendered by the browser-side router without HttpContext/token - so reload it from the server instead.
+*@
+@if (HttpContext is null)
+{
+    <p class="muted">Loading…</p>
+}
+else
+{
+    @Body
+}
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (HttpContext is null) Nav.Refresh(forceReload: true);
+    }
+}
