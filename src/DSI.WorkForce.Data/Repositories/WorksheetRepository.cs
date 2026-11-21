@@ -16,8 +16,11 @@ public sealed class ConcurrencyException(string message) : Exception(message);
 
 public sealed class WorksheetRepository(IDbConnectionFactory db, TemplateRepository templates, MasterDataRepository masters)
 {
+    // 11 columns, 10 parameters per row (WorksheetId shared): 150 rows = 1,501 parameters (SQL Server limit 2,100).
+    private const int RowsPerInsert = 150;
+
     /// <summary>
-    /// Saves one extracted page atomically (header + values via SqlBulkCopy + issues).
+    /// Saves one extracted page atomically (header + values + issues in one transaction).
     /// Confidently-blank cells are not stored, which keeps dsi.WorksheetValue roughly half the size.
     /// </summary>
     public async Task<long> SaveExtractionAsync(long scanFileId, WorksheetExtraction ws, string? imagePath,
@@ -37,20 +40,33 @@ public sealed class WorksheetRepository(IDbConnectionFactory db, TemplateReposit
             Status = ws.Status.ToString(), MinConfidence = Math.Round(ws.MinConfidence, 4), imagePath,
         }, tx, db.CommandTimeout, cancellationToken: ct));
 
-        var table = CreateValueTable();
+        // Plain parameterized multi-row INSERTs (normal row locks; ~120 values per sheet, so 1 round trip).
+        var rows = new List<(int FieldId, ExtractedValue V)>();
         foreach (var v in ws.Values)
         {
-            if (v.IsEmpty && v.Confidence >= 0.9m) continue;
+            if (v.IsEmpty && v.Confidence >= 0.9m) continue;   // confidently blank cells are not stored
             if (!fieldMap.TryGetValue(v.FieldKey, out var fi))
                 throw new InvalidOperationException($"Field {v.FieldKey} is not registered in dsi.FieldDefinition. Run the DbMigrator to import templates.");
-            table.Rows.Add(worksheetId, fi.FieldId, (byte)v.RowIndex, Trim(v.RawText), Trim(v.ValueText), v.ValueNumber,
-                v.ValueDate?.ToDateTime(TimeOnly.MinValue), v.ValueBool, Math.Round(v.Confidence, 4), v.Source.ToString(), false);
+            rows.Add((fi.FieldId, v));
         }
-
-        using (var bulk = new SqlBulkCopy(conn, SqlBulkCopyOptions.CheckConstraints, tx) { DestinationTableName = "dsi.WorksheetValue", BulkCopyTimeout = db.CommandTimeout })
+        foreach (var chunk in rows.Chunk(RowsPerInsert))
         {
-            foreach (DataColumn c in table.Columns) bulk.ColumnMappings.Add(c.ColumnName, c.ColumnName);
-            await bulk.WriteToServerAsync(table, ct);
+            var p = new DynamicParameters();
+            p.Add("w", worksheetId, DbType.Int64);
+            for (var i = 0; i < chunk.Length; i++)
+            {
+                var (fieldId, v) = chunk[i];
+                p.Add($"f{i}", fieldId, DbType.Int32);
+                p.Add($"r{i}", (byte)v.RowIndex, DbType.Byte);
+                p.Add($"raw{i}", Trim(v.RawText), DbType.String, size: 400);
+                p.Add($"t{i}", Trim(v.ValueText), DbType.String, size: 400);
+                p.Add($"n{i}", v.ValueNumber, DbType.Decimal, precision: 18, scale: 4);
+                p.Add($"d{i}", v.ValueDate?.ToDateTime(TimeOnly.MinValue), DbType.Date);
+                p.Add($"b{i}", v.ValueBool, DbType.Boolean);
+                p.Add($"c{i}", Math.Round(v.Confidence, 4), DbType.Decimal, precision: 5, scale: 4);
+                p.Add($"s{i}", v.Source.ToString(), DbType.String, size: 10);
+            }
+            await conn.ExecuteAsync(new CommandDefinition(BuildValuesInsertSql(chunk.Length), p, tx, db.CommandTimeout, cancellationToken: ct));
         }
 
         if (ws.Issues.Count > 0)
@@ -283,25 +299,12 @@ public sealed class WorksheetRepository(IDbConnectionFactory db, TemplateReposit
             """, cancellationToken: ct));
     }
 
-    private static string? Trim(string? s) => s is null ? null : s.Length > 400 ? s[..400] : s;
+    /// <summary>Multi-row INSERT for <paramref name="rows"/> values; parameters @w, @f0.., @r0.., ... (see SaveExtractionAsync).</summary>
+    public static string BuildValuesInsertSql(int rows) =>
+        "INSERT dsi.WorksheetValue (WorksheetId, FieldId, RowIndex, RawText, ValueText, ValueNumber, ValueDate, ValueBool, Confidence, Source, IsCorrected) VALUES " +
+        string.Join(",", Enumerable.Range(0, rows).Select(i => $"(@w,@f{i},@r{i},@raw{i},@t{i},@n{i},@d{i},@b{i},@c{i},@s{i},0)"));
 
-    private static DataTable CreateValueTable()
-    {
-        var t = new DataTable();
-        t.Columns.Add("WorksheetId", typeof(long));
-        t.Columns.Add("FieldId", typeof(int));
-        t.Columns.Add("RowIndex", typeof(byte));
-        t.Columns.Add("RawText", typeof(string));
-        t.Columns.Add("ValueText", typeof(string));
-        t.Columns.Add("ValueNumber", typeof(decimal));
-        t.Columns.Add("ValueDate", typeof(DateTime));
-        t.Columns.Add("ValueBool", typeof(bool));
-        t.Columns.Add("Confidence", typeof(decimal));
-        t.Columns.Add("Source", typeof(string));
-        t.Columns.Add("IsCorrected", typeof(bool));
-        foreach (DataColumn c in t.Columns) c.AllowDBNull = true;
-        return t;
-    }
+    private static string? Trim(string? s) => s is null ? null : s.Length > 400 ? s[..400] : s;
 
     // Dapper row types (DATE columns arrive as DateTime).
     private class SummaryRow

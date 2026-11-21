@@ -18,6 +18,7 @@ public sealed class ExtractionWorker(
     ScanQueueRepository queue,
     WorksheetRepository worksheets,
     ReferenceDataCache reference,
+    DiagnosticsRepository diagnostics,
     FormExtractor extractor,
     IOptions<WorkerOptions> options,
     ILogger<ExtractionWorker> log) : BackgroundService
@@ -102,10 +103,22 @@ public sealed class ExtractionWorker(
         }
         catch (Exception ex)
         {
+            if (ex is Microsoft.Data.SqlClient.SqlException { Number: -2 })   // command timeout: show who holds the locks
+                await LogBlockingAsync();
             var parked = await queue.FailAsync(file.ScanFileId, ex.Message, file.Attempts, _o.MaxAttempts, CancellationToken.None);
             if (parked) log.LogError(ex, "File {File} failed {Attempts} times - parked as Failed", file.FileName, file.Attempts);
             else log.LogWarning(ex, "File {File} failed (attempt {Attempts}) - will retry", file.FileName, file.Attempts);
         }
+    }
+
+    private async Task LogBlockingAsync()
+    {
+        try
+        {
+            var report = await diagnostics.GetLockReportAsync(CancellationToken.None);
+            log.LogWarning("SQL timeout diagnostics (sessions with open transactions / blocking):{NewLine}{Report}", Environment.NewLine, report);
+        }
+        catch (Exception dx) { log.LogDebug(dx, "Could not read SQL diagnostics (needs VIEW SERVER STATE)"); }
     }
 
     private async Task<string> SaveImageAsync(ScanFileRow file, int page, byte[] jpeg, CancellationToken ct)

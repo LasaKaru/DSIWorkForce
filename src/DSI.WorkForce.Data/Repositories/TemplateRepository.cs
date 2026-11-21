@@ -5,19 +5,30 @@ using DSI.WorkForce.Core.Templates;
 
 namespace DSI.WorkForce.Data.Repositories;
 
+public enum TemplateImportResult { Unchanged, Inserted, Updated }
+
 public sealed class TemplateRepository(IDbConnectionFactory db)
 {
-    /// <summary>Inserts the template version (if new) and registers / updates every field in dsi.FieldDefinition.</summary>
-    public async Task<bool> UpsertAsync(FormTemplateDefinition t, CancellationToken ct = default)
+    /// <summary>
+    /// Imports a template version. New version: inserted. Same version with a different layout (e.g. zones adjusted
+    /// while calibrating): updated. Identical: nothing is written. Fields are registered/updated in dsi.FieldDefinition
+    /// only when something changed, so a normal application start takes no write locks.
+    /// </summary>
+    public async Task<TemplateImportResult> UpsertAsync(FormTemplateDefinition t, CancellationToken ct = default)
     {
-        await using var conn = await db.OpenAsync(ct);
-        await using var tx = conn.BeginTransaction();
-
         var json = TemplateSerializer.Serialize(t);
-        var inserted = await conn.ExecuteAsync(new CommandDefinition("""
-            IF NOT EXISTS (SELECT 1 FROM dsi.FormTemplate WHERE TemplateCode = @Code AND Version = @Version)
-                INSERT dsi.FormTemplate (TemplateCode, Version, Name, DefinitionJson) VALUES (@Code, @Version, @Name, @Json);
-            """, new { Code = t.TemplateCode, t.Version, t.Name, Json = json }, tx, cancellationToken: ct)) > 0;
+        await using var conn = await db.OpenAsync(ct);
+
+        var stored = await conn.QuerySingleOrDefaultAsync<string>(new CommandDefinition(
+            "SELECT DefinitionJson FROM dsi.FormTemplate WHERE TemplateCode = @Code AND Version = @Version",
+            new { Code = t.TemplateCode, t.Version }, cancellationToken: ct));
+        if (stored == json) return TemplateImportResult.Unchanged;
+
+        await using var tx = conn.BeginTransaction();
+        await conn.ExecuteAsync(new CommandDefinition(stored is null
+                ? "INSERT dsi.FormTemplate (TemplateCode, Version, Name, DefinitionJson) VALUES (@Code, @Version, @Name, @Json);"
+                : "UPDATE dsi.FormTemplate SET Name = @Name, DefinitionJson = @Json WHERE TemplateCode = @Code AND Version = @Version;",
+            new { Code = t.TemplateCode, t.Version, t.Name, Json = json }, tx, cancellationToken: ct));
 
         foreach (var f in t.Fields)
         {
@@ -30,7 +41,7 @@ public sealed class TemplateRepository(IDbConnectionFactory db)
         }
 
         await tx.CommitAsync(ct);
-        return inserted;
+        return stored is null ? TemplateImportResult.Inserted : TemplateImportResult.Updated;
     }
 
     /// <summary>Latest active version of every template code.</summary>

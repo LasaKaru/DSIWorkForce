@@ -18,18 +18,20 @@ public sealed class DatabaseInitializer(DatabaseOptions options, string template
     // Web and Worker are usually started together from Visual Studio: only one may create/upgrade at a time.
     private const string MutexName = "DSIWorkForce-DatabaseInitializer";
 
-    public Task RunAsync(bool forceReports = false, CancellationToken ct = default) =>
+    /// <param name="forceReports">Overwrite report columns from templates/reports/*.json.</param>
+    /// <param name="alwaysRebuildViews">Rebuild report views even if nothing changed (the DbMigrator does this).</param>
+    public Task RunAsync(bool forceReports = false, bool alwaysRebuildViews = false, CancellationToken ct = default) =>
         // A Mutex must be released by the thread that took it, so run the whole job on one dedicated thread.
         Task.Factory.StartNew(() =>
         {
             using var mutex = new Mutex(false, MutexName);
             try { mutex.WaitOne(TimeSpan.FromMinutes(5)); }
             catch (AbandonedMutexException) { /* previous holder crashed: we own it now */ }
-            try { RunCoreAsync(forceReports, ct).GetAwaiter().GetResult(); }
+            try { RunCoreAsync(forceReports, alwaysRebuildViews, ct).GetAwaiter().GetResult(); }
             finally { mutex.ReleaseMutex(); }
         }, ct, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
-    private async Task RunCoreAsync(bool forceReports, CancellationToken ct)
+    private async Task RunCoreAsync(bool forceReports, bool alwaysRebuildViews, CancellationToken ct)
     {
         var builder = new SqlConnectionStringBuilder(options.ConnectionString);
         log($"Database: {builder.DataSource} / {builder.InitialCatalog} (Windows authentication: {builder.IntegratedSecurity})");
@@ -38,8 +40,14 @@ public sealed class DatabaseInitializer(DatabaseOptions options, string template
         var result = DatabaseMigrator.Migrate(options.ConnectionString, createDatabaseIfMissing: true, log);
         if (!result.Successful)
             throw new InvalidOperationException($"Database migration failed: {result.Error?.Message}", result.Error);
+        var changed = result.Scripts.Any();
 
         var db = new SqlConnectionFactory(Options.Create(options));
+
+        // LocalDB / Express create databases with AUTO_CLOSE ON (the database shuts down between requests). Turn it off.
+        await using (var c = await db.OpenAsync(ct))
+            await c.ExecuteAsync(new CommandDefinition(
+                "IF DATABASEPROPERTYEX(DB_NAME(), 'IsAutoClose') = 1 ALTER DATABASE CURRENT SET AUTO_CLOSE OFF;", cancellationToken: ct));
         var templates = new TemplateRepository(db);
         var reports = new ReportRepository(db, templates);
 
@@ -47,8 +55,14 @@ public sealed class DatabaseInitializer(DatabaseOptions options, string template
         foreach (var file in Directory.EnumerateFiles(Path.Combine(templatesDir, "forms"), "*.json").Order())
         {
             var t = TemplateSerializer.Deserialize(await File.ReadAllTextAsync(file, ct));
-            var added = await templates.UpsertAsync(t, ct);
-            log($"Template {t.TemplateCode} v{t.Version}: {(added ? "imported" : "already present (fields refreshed)")} - {t.Fields.Count} fields");
+            var import = await templates.UpsertAsync(t, ct);
+            changed |= import != TemplateImportResult.Unchanged;
+            log($"Template {t.TemplateCode} v{t.Version}: {import switch
+            {
+                TemplateImportResult.Inserted => "imported",
+                TemplateImportResult.Updated => "layout updated",
+                _ => "unchanged",
+            }} - {t.Fields.Count} fields");
         }
 
         // 3. Report definitions: imported once; afterwards maintained in Admin > Report columns (or forceReports).
@@ -63,13 +77,18 @@ public sealed class DatabaseInitializer(DatabaseOptions options, string template
             }
             await reports.SaveAndBuildAsync(def, ct);
             log($"Report {def.Code}: imported, view rpt.vw_{def.Code} built");
+            changed = true;
         }
 
-        // 4. Rebuild every report view (picks up field changes from new template versions)
-        await reports.RebuildAllAsync(ct);
+        // 4. Rebuild report views only when something changed: no DDL while the Worker is busy on a normal start.
+        if (changed || alwaysRebuildViews)
+        {
+            await reports.RebuildAllAsync(ct);
+            log("Report views rebuilt.");
+        }
 
         // 5. Optional sample master data for development
-        if (options.SeedSampleData)
+        if (options.SeedSampleData && (changed || alwaysRebuildViews))
         {
             await using var stream = typeof(DatabaseInitializer).Assembly.GetManifestResourceStream("DSI.WorkForce.Data.Seed.SampleMasterData.sql")
                                      ?? throw new InvalidOperationException("Seed script not embedded.");

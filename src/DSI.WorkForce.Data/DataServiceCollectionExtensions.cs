@@ -13,6 +13,7 @@ public static class DataServiceCollectionExtensions
         services.AddSingleton<MasterDataRepository>();
         services.AddSingleton<WorksheetRepository>();
         services.AddSingleton<ReportRepository>();
+        services.AddSingleton<DiagnosticsRepository>();
         return services;
     }
 }

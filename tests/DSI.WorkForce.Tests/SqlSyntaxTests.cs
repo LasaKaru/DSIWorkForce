@@ -63,7 +63,7 @@ public partial class SqlSyntaxTests(ITestOutputHelper output)
             var code = File.ReadAllText(file);
             var snippets = RawLiteral().Matches(code).Select(m => m.Groups[1].Value)
                 .Concat(SimpleLiteral().Matches(code).Select(m => m.Groups[1].Value));
-            foreach (var sql in snippets)
+            foreach (var sql in snippets.Where(x => !x.TrimEnd().EndsWith("VALUES", StringComparison.Ordinal)))   // completed at runtime, parsed below
             {
                 // Interpolation holes ({fn}, [{col}]) are always identifiers in this code base.
                 var cleaned = Hole().Replace(sql, "x");
@@ -71,6 +71,7 @@ public partial class SqlSyntaxTests(ITestOutputHelper output)
                 count++;
             }
         }
+        AssertParses("WorksheetValue multi-row insert", DSI.WorkForce.Data.Repositories.WorksheetRepository.BuildValuesInsertSql(150));
         output.WriteLine($"{count} SQL statements parsed");
         Assert.True(count > 25);
     }

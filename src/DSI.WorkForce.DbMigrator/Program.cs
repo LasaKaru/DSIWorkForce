@@ -28,7 +28,7 @@ dbOptions.SeedSampleData |= args.Contains("--seed-sample-data");
 try
 {
     await new DatabaseInitializer(dbOptions, templatesDir, m => Console.WriteLine($"{DateTime.Now:HH:mm:ss} {m}"))
-        .RunAsync(forceReports: args.Contains("--force-reports"));
+        .RunAsync(forceReports: args.Contains("--force-reports"), alwaysRebuildViews: true);
     return 0;
 }
 catch (SqlException ex)
