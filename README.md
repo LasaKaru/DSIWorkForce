@@ -47,6 +47,10 @@ Measured by the integration test and the calibration tool on the real scan:
   a human: on the sample, 67 hourly cells + 24 other boxes (date, press, EPF, shift, target, name, tyre, mould
   log, specs, 3 reasons, total).
 * The orange column (නිසැදු වාර ගණන) is captured as **Rejection** per hour and shown as a report column.
+* **Handwriting OCR runs locally by default** (PaddleOCR PP-OCRv5 on the CPU, free, offline). On the sample it read
+  13 of 13 key numeric values correctly: EPF 5916, press P-24, shift 2-10, target 390, total 402, mould log 24…19,
+  steam pressure 15-0150. The date (slashes) and messy free text are the weak spots. Those go to review or to an
+  optional second engine (Azure / Ollama) for unsure boxes only.
 
 ## Quick start (developer PC, Windows)
 
@@ -70,7 +74,7 @@ dotnet run --project src/DSI.WorkForce.Web --launch-profile https     # -> https
 # 4. Desktop app: open DSIWorkForce.sln in Visual Studio 2022, start DSI.WorkForce.Desktop
 ```
 
-Tests: `dotnet test tests/DSI.WorkForce.Tests` (49 tests: normalization, matching, OMR, rules, report SQL,
+Tests: `dotnet test tests/DSI.WorkForce.Tests` (53 tests: normalization, matching, OMR, rules, report SQL,
 and **T-SQL syntax of every script and query**, checked with Microsoft's ScriptDom parser).
 Set `DSI_SAMPLE_PDF=C:\path\scan.pdf` to also run the real-scan integration test.
 Scans are not committed because they contain employee data.

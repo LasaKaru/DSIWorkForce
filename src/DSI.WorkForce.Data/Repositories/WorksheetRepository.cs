@@ -272,6 +272,25 @@ public sealed class WorksheetRepository(IDbConnectionFactory db, TemplateReposit
                 }, tx, cancellationToken: ct));
     }
 
+    /// <summary>
+    /// Throws away this page's readings and queues its file again (the Worker re-reads only missing pages).
+    /// Use after switching on OCR, changing the template or calibrating. Corrections audit is kept.
+    /// </summary>
+    public async Task ReprocessAsync(long worksheetId, CancellationToken ct = default)
+    {
+        await using var conn = await db.OpenAsync(ct);
+        await conn.ExecuteAsync(new CommandDefinition("""
+            SET XACT_ABORT ON;
+            BEGIN TRAN;
+            DECLARE @file BIGINT = (SELECT ScanFileId FROM dsi.Worksheet WHERE WorksheetId = @worksheetId);
+            DELETE dsi.Worksheet WHERE WorksheetId = @worksheetId;   -- values and issues are deleted by cascade
+            UPDATE dsi.ScanFile
+               SET Status = N'Pending', Attempts = 0, NextAttemptAt = SYSUTCDATETIME(), LockedBy = NULL, LockedUntil = NULL, LastError = NULL
+             WHERE ScanFileId = @file;
+            COMMIT;
+            """, new { worksheetId }, cancellationToken: ct));
+    }
+
     public async Task RejectAsync(long worksheetId, string user, string reason, CancellationToken ct = default)
     {
         await using var conn = await db.OpenAsync(ct);

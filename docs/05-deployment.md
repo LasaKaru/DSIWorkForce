@@ -33,7 +33,9 @@ Worker `appsettings.json`:
 | `Worker:StagingRoot / DuplicatesFolder / ImageRoot` | Archive, duplicates, aligned images. |
 | `Worker:MaxDegreeOfParallelism` | Pages in parallel (≤ CPU cores). |
 | `Worker:MaxAttempts` | After this many failures a file is parked as `Failed` (retry from the dashboard). |
-| `Extraction:Recognizer` | `None` / `AzureDocumentIntelligence` / `Ollama`. |
+| `Extraction:Recognizer` | `Local` (PaddleOCR on CPU, default) / `AzureDocumentIntelligence` / `Ollama` / `None` (manual typing). |
+| `Extraction:EscalateTo`, `EscalateBelowConfidence` | Optional second engine for boxes read with low confidence (`None`, `AzureDocumentIntelligence`, `Ollama`; default threshold 0.85). |
+| `Extraction:Local:Model / Variants / CpuThreads` | `PPOCRv5` (default) or `EnglishV4`; image variants per box 1–3 (default 3); CPU threads per OCR engine (default 2). |
 | `Extraction:Azure:*`, `Extraction:Ollama:*` | Recognizer settings (put keys in environment variables, not in the file). |
 
 Web `appsettings.json`: `Database`, `Auth:Mode` (`Windows`), `Auth:ReviewerRoles`, `Auth:AdminRoles`,

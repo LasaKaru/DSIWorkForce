@@ -8,7 +8,9 @@ A realistic order to go from paper to production. Each step is useful on its own
 
    | Option | Cost | Accuracy on handwriting | Notes |
    |---|---|---|---|
-   | `None` (manual keying) | free | n/a (human types) | Start here for the pilot. Tick boxes are read automatically and empty boxes are skipped, but every **filled hourly cell** (~60–90 per sheet) plus ~24 other boxes must be typed (fast 8 × 12 entry grid with live row sums). Not practical for 5,000 sheets/day long-term. |
+   | **`Local`** (default): PaddleOCR PP-OCRv5 inside the Worker | free, CPU only, offline | good on numbers / press no. / EPF; weaker on dates with slashes and messy text | Models ship in the NuGet package, so nothing to install. On the sample sheet it read 13 of 13 key numeric values (EPF, press, shift, target, total, mould log, steam pressure). ~4 s per page on 2 CPU threads. |
+   | `Local` + `EscalateTo` Azure or Ollama | cloud/GPU only for unsure boxes | best overall | Boxes read with confidence below `EscalateBelowConfidence` (0.85) get a second opinion. Typically a small share of boxes, so cost stays low. |
+   | `None` (manual keying) | free | n/a (human types) | Fallback / testing. Tick boxes are still read automatically and empty boxes skipped, but every filled box must be typed. |
    | `AzureDocumentIntelligence` | per page (cloud) | very good for digits/Latin text | ~150k pages/month at 5,000/day, so check current Azure pricing. Needs internet from the worker server. |
    | `Ollama` (local VLM, e.g. `qwen2.5vl:7b`) | one GPU PC (e.g. RTX 4060 Ti 16 GB / 4090) | good, and improves with newer models | Fully on-premise. One call per sheet. |
 
@@ -90,10 +92,16 @@ Logs: `C:\apps\dsi-worker\logs\worker-YYYYMMDD.log`. The dashboard shows the wor
 * Track: auto-approved %, average review time per sheet, top issue codes (`database/ExampleQueries.sql` #6).
 * Fix master data (missing EPFs/items) as they show up. Item corrections teach `dsi.ItemAlias` automatically.
 
-## Step 9: Turn on a handwriting recognizer
+## Step 9: Tune handwriting reading
 
-Set `Extraction:Recognizer` to `AzureDocumentIntelligence` or `Ollama` in the worker config and restart the service.
-Keep the key out of the file: `setx /M Extraction__Azure__ApiKey ...` (environment variable) or a secret store.
+Out of the box `Extraction:Recognizer` is `Local` (PaddleOCR on the CPU). After the pilot, look at which boxes
+reviewers still correct most:
+
+* Mostly dates / messy text → add a second opinion: `"EscalateTo": "AzureDocumentIntelligence"` (or `"Ollama"`).
+  Only boxes below `EscalateBelowConfidence` are sent. Keep the key out of the file:
+  `setx /M Extraction__Azure__ApiKey ...` (environment variable) or a secret store.
+* CPU too busy → `"Local": { "Variants": 1 }` (one image variant per box, about 2× faster) or lower `MaxDegreeOfParallelism`.
+* After changing anything, open a sheet and click **↻ Re-read** to process it again with the new settings.
 
 ## Step 10: Reporting at the database level
 

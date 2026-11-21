@@ -47,6 +47,12 @@ public static class ApiEndpoints
             return Results.NoContent();
         });
 
+        api.MapPost("/worksheets/{id:long}/reprocess", async (long id, WorksheetRepository repo, CancellationToken ct) =>
+        {
+            await repo.ReprocessAsync(id, ct);
+            return Results.Accepted();
+        });
+
         api.MapGet("/reports", async (ReportRepository repo, CancellationToken ct) =>
             (await repo.GetAllAsync(ct)).Select(r => new { r.Code, r.Title, r.Subtitle }));
 

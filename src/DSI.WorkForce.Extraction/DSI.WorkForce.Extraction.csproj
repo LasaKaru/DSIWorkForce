@@ -9,6 +9,12 @@
     <PackageReference Include="OpenCvSharp4.official.runtime.linux-x64" />
     <PackageReference Include="PDFtoImage" />
     <PackageReference Include="Azure.AI.DocumentIntelligence" />
+    <PackageReference Include="Sdcb.PaddleOCR" />
+    <PackageReference Include="Sdcb.PaddleOCR.Models.Local" />
+    <!-- Native Paddle inference engine for Windows x64 (production). -->
+    <PackageReference Include="Sdcb.PaddleInference.runtime.win64.mkl" />
+    <!-- Linux native engine is ~700 MB: only pulled in when explicitly requested (dotnet build -p:DsiLinuxOcr=true). -->
+    <PackageReference Include="Sdcb.PaddleInference.runtime.linux-x64.mkl" Condition="'$(DsiLinuxOcr)' == 'true'" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Options" />

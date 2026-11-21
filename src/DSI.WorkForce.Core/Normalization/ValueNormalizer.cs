@@ -22,6 +22,7 @@ public static partial class ValueNormalizer
         ['S'] = '5', ['s'] = '5',
         ['B'] = '8',
         ['G'] = '6', ['b'] = '6',
+        ['H'] = '4', ['h'] = '4', ['K'] = '4',   // open-top handwritten 4
         ['g'] = '9', ['q'] = '9',
         ['T'] = '7',
     };
@@ -105,6 +106,8 @@ public static partial class ValueNormalizer
             if (char.IsDigit(ch)) sb.Append(ch);
             else if (ch is '.' or ',' && !integerOnly) sb.Append('.');
             else if (ch is ' ' or '\'' or ',') continue;
+            // Integers: pen dots / ticks between digits ("5.91.6" for 5916) are noise, not decimals.
+            else if (integerOnly && ch is '.' or ':' or '`' or '·') { substituted = true; continue; }
             else if (DigitConfusions.TryGetValue(ch, out var d)) { sb.Append(d); substituted = true; }
             else return (null, substituted);
         }
@@ -147,6 +150,15 @@ public static partial class ValueNormalizer
         var input = Canon(v.ValueText!);
         var exact = field.AllowedValues!.FirstOrDefault(a => Canon(a) == input);
         if (exact is not null) { v.ValueText = exact; return; }
+
+        // A slash read as "1" ("2110" for "2/10"): try turning one 1 / l / | back into a separator.
+        for (var i = 0; i < input.Length; i++)
+        {
+            if (input[i] is not ('1' or 'L' or 'I' or '|')) continue;
+            var variant = input[..i] + "-" + input[(i + 1)..];
+            var hit = field.AllowedValues!.FirstOrDefault(a => Canon(a) == variant);
+            if (hit is not null) { v.ValueText = hit; v.Confidence = Math.Min(v.Confidence, 0.9m); return; }
+        }
 
         var (best, score) = FuzzyMatcher.Best(input, field.AllowedValues!, Canon);
         if (best is not null && score >= 0.6)

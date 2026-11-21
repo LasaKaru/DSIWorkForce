@@ -9,11 +9,16 @@
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="5.2.3" />
     <PackageVersion Include="dbup-sqlserver" Version="6.0.0" />
     <!-- Extraction -->
-    <PackageVersion Include="OpenCvSharp4" Version="4.10.0.20241108" />
-    <PackageVersion Include="OpenCvSharp4.runtime.win" Version="4.10.0.20241108" />
-    <PackageVersion Include="OpenCvSharp4.official.runtime.linux-x64" Version="4.10.0.20241108" />
+    <PackageVersion Include="OpenCvSharp4" Version="4.11.0.20250507" />
+    <PackageVersion Include="OpenCvSharp4.runtime.win" Version="4.11.0.20250507" />
+    <PackageVersion Include="OpenCvSharp4.official.runtime.linux-x64" Version="4.11.0.20250507" />
     <PackageVersion Include="PDFtoImage" Version="4.1.1" />
     <PackageVersion Include="Azure.AI.DocumentIntelligence" Version="1.0.0" />
+    <!-- Local handwriting OCR (PaddleOCR PP-OCRv5, Apache-2.0): models ship inside the NuGet package, runs on CPU, offline. -->
+    <PackageVersion Include="Sdcb.PaddleOCR" Version="3.0.1" />
+    <PackageVersion Include="Sdcb.PaddleOCR.Models.Local" Version="3.0.1" />
+    <PackageVersion Include="Sdcb.PaddleInference.runtime.win64.mkl" Version="3.1.0.54" />
+    <PackageVersion Include="Sdcb.PaddleInference.runtime.linux-x64.mkl" Version="3.1.0.54" />
     <!-- Microsoft.Extensions (.NET 8 line) -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />

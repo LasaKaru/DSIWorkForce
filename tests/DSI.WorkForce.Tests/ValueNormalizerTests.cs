@@ -40,6 +40,8 @@ public class ValueNormalizerTests
     [InlineData("S2I4", 5214, true)]   // classic handwriting confusions
     [InlineData("12 34", 1234, false)]
     [InlineData("4O2", 402, true)]
+    [InlineData("S.21.4", 5214, true)]   // pen dots between digits
+    [InlineData("K.02", 402, true)]      // open-top 4 read as K (seen on the sample sheet)
     public void Integers_fix_letter_digit_confusions(string raw, int expected, bool lowered)
     {
         var f = new FieldDefinition { Key = "EPF_NO", Type = FieldDataType.Integer };
@@ -62,6 +64,7 @@ public class ValueNormalizerTests
     [InlineData("2/10", "2-10")]
     [InlineData("2 - 10", "2-10")]
     [InlineData("6-2", "6-2")]
+    [InlineData("2110", "2-10")]   // slash read as "1"
     public void Shift_snaps_to_allowed_values(string raw, string expected)
     {
         var f = new FieldDefinition { Key = "SHIFT", Type = FieldDataType.Text, AllowedValues = ["6-2", "2-10", "10-6"] };

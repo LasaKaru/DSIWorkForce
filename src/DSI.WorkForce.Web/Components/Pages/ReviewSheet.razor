@@ -25,10 +25,23 @@ else
             <h1>Sheet @Id <StatusBadge Status="@s.Status" /></h1>
             <p class="muted">@s.FileName page @s.PageNo · @s.TemplateCode · scanned @s.CreatedAt.ToLocalTime().ToString("g")</p>
 
-            @if (_detail.Issues.Count > 0)
+            @{
+                // Box-level "please type / check" notes are summarised; real problems (rules, master data) are listed.
+                var boxNotes = _detail.Issues.Where(i => i.Code is "NOT_READ" or "LOW_CONFIDENCE").ToList();
+                var problems = _detail.Issues.Except(boxNotes).ToList();
+            }
+            @if (boxNotes.Count > 0)
+            {
+                <p class="summary">
+                    ✏️ <b>@boxNotes.Count(i => i.Code == "NOT_READ")</b> box(es) to type and
+                    <b>@boxNotes.Count(i => i.Code == "LOW_CONFIDENCE")</b> reading(s) to check. They are highlighted in yellow below;
+                    values the OCR read are already filled in.
+                </p>
+            }
+            @if (problems.Count > 0)
             {
                 <ul class="issues">
-                    @foreach (var i in _detail.Issues)
+                    @foreach (var i in problems)
                     {
                         <li class="@i.Severity.ToLowerInvariant()"><b>@i.Code</b> @(i.FieldKey is null ? "" : $"{i.FieldKey}{(i.RowIndex > 0 ? $" #{i.RowIndex}" : "")}:") @i.Message</li>
                     }
@@ -120,6 +133,7 @@ else
                 <button class="btn primary" @onclick="() => Save(true)">Verify ✓ &amp; next</button>
                 <input placeholder="Reject reason" @bind="_rejectReason" />
                 <button class="btn danger" @onclick="Reject" disabled="@string.IsNullOrWhiteSpace(_rejectReason)">Reject</button>
+                <button class="btn" @onclick="Reprocess" title="Discard these readings and let the Worker read the page again (after enabling OCR or calibrating)">↻ Re-read</button>
             </div>
         </section>
     </div>
@@ -198,6 +212,12 @@ else
         }
         catch (ConcurrencyException ex) { (_message, _error) = (ex.Message, true); }
         catch (Exception ex) { (_message, _error) = ("Save failed: " + ex.Message, true); }
+    }
+
+    private async Task Reprocess()
+    {
+        await Worksheets.ReprocessAsync(Id);
+        Nav.NavigateTo("review");
     }
 
     private async Task Reject()

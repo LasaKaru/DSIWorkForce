@@ -177,9 +177,8 @@ You need **two programs running at the same time**: the **Worker** (reads the sc
 5. **Database level:** SQL Server Object Explorer → DSIWorkForce → **Views → rpt.vw_DailyEfficiency** →
    right-click **View Data**. More examples: `database/ExampleQueries.sql`.
 
-> **Why is my sheet not in the report?** Reports filter on the date *written on the sheet*. With the default
-> `"Recognizer": "None"` nothing handwritten is read automatically, so the date is empty until a reviewer types
-> it on the review screen. Sheets still waiting for review are included (not only verified ones) unless the report
+> **Why is my sheet not in the report?** Reports filter on the date *written on the sheet*. Dates with slashes
+> are the hardest box for OCR, so the date often waits for a reviewer to confirm or type it on the review screen. Sheets still waiting for review are included (not only verified ones) unless the report
 > has *Only approved / verified sheets* ticked.
 
 ---
@@ -200,24 +199,45 @@ To calibrate another file: Worker project → **Properties → Debug → Open de
 
 ## 9. Run the tests
 
-**Test → Test Explorer → Run All Tests** (49 tests).
+**Test → Test Explorer → Run All Tests** (53 tests).
 
 To also run the real-scan integration test, set an environment variable, then restart Visual Studio:
 
 ```powershell
 setx DSI_SAMPLE_PDF C:\DSIWorkForce\samples\sample.pdf
+setx DSI_TEST_LOCAL_OCR 1      # also run the real handwriting-OCR test
 ```
 
 ---
 
-## 10. Turn on automatic handwriting reading (optional)
+## 10. Handwriting reading (OCR)
 
-Keep keys out of the code: right-click **DSI.WorkForce.Worker → Manage User Secrets** and add, for example:
+Handwriting is read **automatically by default** with PaddleOCR (PP-OCRv5) running on your CPU inside the Worker.
+It is free and offline, and the model ships with the NuGet package. Settings in `src/DSI.WorkForce.Worker/appsettings.json`:
+
+```json
+"Extraction": {
+  "Recognizer": "Local",
+  "EscalateTo": "None",
+  "EscalateBelowConfidence": 0.85,
+  "Local": { "Model": "PPOCRv5", "Variants": 3, "CpuThreads": 2 }
+}
+```
+
+The first page after starting takes a few extra seconds (model loading: log line *Loading PaddleOCR model*).
+Values the OCR read are pre-filled on the review screen. Low-confidence ones are highlighted for checking.
+Sheets read before OCR was on: open them and click **↻ Re-read**.
+
+To see what the OCR read for each box (all image variants), run the calibration (step 8) with debug logging:
+set the environment variable `Serilog__MinimumLevel__Default=Debug` in the Worker's launch profile.
+
+**Second opinion for unsure boxes (optional).** Keep keys out of the code: right-click
+**DSI.WorkForce.Worker → Manage User Secrets** and add, for example:
 
 ```json
 {
   "Extraction": {
-    "Recognizer": "AzureDocumentIntelligence",
+    "EscalateTo": "AzureDocumentIntelligence",
     "Azure": { "Endpoint": "https://<your-resource>.cognitiveservices.azure.com/", "ApiKey": "<key>" }
   }
 }
@@ -226,10 +246,11 @@ Keep keys out of the code: right-click **DSI.WorkForce.Worker → Manage User Se
 or, for a local GPU model served by Ollama (`ollama pull qwen2.5vl:7b`):
 
 ```json
-{ "Extraction": { "Recognizer": "Ollama", "Ollama": { "BaseUrl": "http://localhost:11434", "Model": "qwen2.5vl:7b" } } }
+{ "Extraction": { "EscalateTo": "Ollama", "Ollama": { "BaseUrl": "http://localhost:11434", "Model": "qwen2.5vl:7b" } } }
 ```
 
-Restart the Worker. New sheets will arrive with most fields already filled in.
+Restart the Worker. Only boxes the local OCR is unsure about (confidence < 0.85) are sent to the second engine.
+To use Azure or Ollama for *everything*, set `"Recognizer"` instead of `"EscalateTo"`.
 
 ---
 
@@ -243,6 +264,7 @@ Restart the Worker. New sheets will arrive with most fields already filled in.
 | Worker: *Hot folder ... not reachable* | Create the folders (step 3) or fix `Worker:HotFolders` in `appsettings.Development.json`. |
 | Dashboard: *Worker heartbeat: never* | The Worker isn't running, or it uses a different connection string than the Web app. |
 | Sheet status *NeedsReview* with *ALIGNMENT_FAILED* | Page is not PC-011-A, or very skewed/cut off. Rescan; check with *Calibrate*. |
+| `DllNotFoundException: paddle_inference_c` / OCR engine fails to load | Run as 64-bit and install the latest *Microsoft Visual C++ Redistributable (x64)*. As a fallback set `"Recognizer": "None"`. |
 | `DllNotFoundException: OpenCvSharpExtern` / `pdfium` | Run as 64-bit (see step 2). Install the latest *Microsoft Visual C++ Redistributable (x64)*. |
 | WPF: *Server not reachable* | Start the Web project too, and check `ApiBaseUrl` in `desktopsettings.json`. Run `dotnet dev-certs https --trust`. |
 | Browser certificate warning | `dotnet dev-certs https --trust`, then restart the browser. |

@@ -54,3 +54,4 @@ table.hourly td.attention { background:#fff1d6; }
 table.hourly input.cell { width:3.2em; text-align:center; padding:2px; }
 table.hourly .right { text-align:right; padding-right:8px; }
 .snippet.row-snippet { width:100%; max-height:none; margin:4px 0; }
+.summary { background:#fffbea; border-left:3px solid var(--warn); padding:6px 10px; margin:8px 0; }

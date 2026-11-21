@@ -9,10 +9,12 @@ using Serilog;
 //   Install Windows service: sc.exe create DSIWorkForceWorker binPath= "C:\apps\dsi-worker\DSI.WorkForce.Worker.exe" start= delayed-auto
 //   Calibrate a template:    DSI.WorkForce.Worker.exe --calibrate scan.pdf [--template file.json] [--out folder]
 
-var builder = Host.CreateApplicationBuilder(args);
+// Always read appsettings.json next to the exe (also when started from another folder or as a Windows Service).
+var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { Args = args, ContentRootPath = AppContext.BaseDirectory });
 builder.Services.AddWindowsService(o => o.ServiceName = "DSIWorkForceWorker");
 
-builder.Services.AddSerilog((sp, cfg) => cfg.ReadFrom.Configuration(builder.Configuration).Enrich.FromLogContext());
+// Created eagerly so that the --calibrate tool (which never starts the host) logs too.
+builder.Services.AddSerilog(new LoggerConfiguration().ReadFrom.Configuration(builder.Configuration).Enrich.FromLogContext().CreateLogger(), dispose: true);
 
 builder.Services.Configure<WorkerOptions>(builder.Configuration.GetSection(WorkerOptions.SectionName));
 builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(DatabaseOptions.SectionName));

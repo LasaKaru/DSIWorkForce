@@ -4,8 +4,20 @@ public sealed class ExtractionOptions
 {
     public const string SectionName = "Extraction";
 
-    /// <summary>None (manual keying of handwriting, OMR still automatic) | AzureDocumentIntelligence | Ollama</summary>
-    public string Recognizer { get; set; } = "None";
+    /// <summary>
+    /// Local (PaddleOCR PP-OCRv5 on CPU, offline, free - default) | AzureDocumentIntelligence | Ollama |
+    /// None (manual keying of handwriting; tick boxes are still read automatically).
+    /// </summary>
+    public string Recognizer { get; set; } = "Local";
+
+    /// <summary>
+    /// Optional second opinion for boxes the first recognizer is unsure about: None | AzureDocumentIntelligence | Ollama.
+    /// Only those boxes are sent, which keeps cloud cost / GPU time low.
+    /// </summary>
+    public string EscalateTo { get; set; } = "None";
+    public decimal EscalateBelowConfidence { get; set; } = 0.85m;
+
+    public LocalOcrOptions Local { get; set; } = new();
 
     public int AlignedImageJpegQuality { get; set; } = 75;
 
@@ -14,6 +26,16 @@ public sealed class ExtractionOptions
 
     public AzureDocumentIntelligenceOptions Azure { get; set; } = new();
     public OllamaOptions Ollama { get; set; } = new();
+}
+
+public sealed class LocalOcrOptions
+{
+    /// <summary>PPOCRv5 (best for handwriting, recommended) | EnglishV4</summary>
+    public string Model { get; set; } = "PPOCRv5";
+    /// <summary>Image variants tried per box (1-3). More = slightly slower, more robust on messy handwriting.</summary>
+    public int Variants { get; set; } = 3;
+    /// <summary>CPU threads used by one recognizer instance (the Worker runs several pages in parallel).</summary>
+    public int CpuThreads { get; set; } = 2;
 }
 
 public sealed class AzureDocumentIntelligenceOptions

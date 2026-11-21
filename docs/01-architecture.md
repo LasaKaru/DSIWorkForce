@@ -23,7 +23,11 @@
 4. **Blank detection**: for handwriting boxes, printed table lines are removed (morphology) and the remaining ink
    is measured. Empty boxes are stored as "confidently empty" and never sent to OCR or to a human.
 5. **Handwriting** (only non-empty boxes, including each filled cell of the 8 × 12 hourly grid) via `IHandwritingRecognizer`:
-   * `None`: manual keying in the review screen (start here; still saves ~75% of typing).
+   * `Local` (default): PaddleOCR PP-OCRv5 on the CPU inside the Worker. Each box is cleaned first (printed lines
+     erased, cropped to the ink, scaled), read in a batch, and re-read with up to 2 other image variants when the result
+     is not valid for the field type (a number box must parse as a number). Optional `EscalateTo` sends only unsure
+     boxes to Azure / Ollama.
+   * `None`: manual keying in the review screen.
    * `AzureDocumentIntelligence`: one call per sheet, words mapped to zones, real per-word confidence.
    * `Ollama`: local vision-language model (e.g. Qwen2.5-VL 7B on one GPU). All snippets of a sheet go into
      one numbered "contact sheet" image → one call → strict JSON.
