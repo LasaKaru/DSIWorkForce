@@ -8,7 +8,7 @@ A realistic order to go from paper to production. Each step is useful on its own
 
    | Option | Cost | Accuracy on handwriting | Notes |
    |---|---|---|---|
-   | **`Local`** (default): PaddleOCR PP-OCRv5 inside the Worker | free, CPU only, offline | good on numbers / press no. / EPF; weaker on dates with slashes and messy text | Models ship in the NuGet package, so nothing to install. On the sample sheet it read 13 of 13 key numeric values (EPF, press, shift, target, total, mould log, steam pressure). ~4 s per page on 2 CPU threads. |
+   | **`Local`** (default): PaddleOCR PP-OCRv5 inside the Worker | free, CPU only, offline | good on numbers / press no. / EPF; weaker on dates with slashes and messy text | Models ship in the NuGet package, so nothing to install. On the sample sheet it read 13 of 13 key numeric values (EPF, press, shift, target, total, mould log, steam pressure). about 1.7 s per page on a 4-core PC (one page per core in parallel). |
    | `Local` + `EscalateTo` Azure or Ollama | cloud/GPU only for unsure boxes | best overall | Boxes read with confidence below `EscalateBelowConfidence` (0.85) get a second opinion. Typically a small share of boxes, so cost stays low. |
    | `None` (manual keying) | free | n/a (human types) | Fallback / testing. Tick boxes are still read automatically and empty boxes skipped, but every filled box must be typed. |
    | `AzureDocumentIntelligence` | per page (cloud) | very good for digits/Latin text | ~150k pages/month at 5,000/day, so check current Azure pricing. Needs internet from the worker server. |
@@ -101,7 +101,7 @@ reviewers still correct most:
 * Mostly dates / messy text → add a second opinion: `"EscalateTo": "AzureDocumentIntelligence"` (or `"Ollama"`).
   Only boxes below `EscalateBelowConfidence` are sent. Keep the key out of the file:
   `setx /M Extraction__Azure__ApiKey ...` (environment variable) or a secret store.
-* CPU too busy → `"Local": { "Variants": 1 }` (one image variant per box, about 2× faster) or lower `MaxDegreeOfParallelism`.
+* CPU too busy → `"Local": { "Variants": 1 }` (fewer re-reads per box) or set `Worker:MaxDegreeOfParallelism` below the core count.
 * After changing anything, open a sheet and click **↻ Re-read** to process it again with the new settings.
 
 ## Step 10: Reporting at the database level

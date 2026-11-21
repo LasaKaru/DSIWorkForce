@@ -2,7 +2,7 @@
 
 ## Signing in
 
-DSI WorkForce has its own user accounts (table `dsi.AppUser`). Passwords are stored only as salted PBKDF2-SHA256 hashes.
+DSI WorkForce has its own user accounts (table `dsi.AppUser`). Passwords are stored only as salted PBKDF2-SHA256 hashes. A password needs at least 6 characters and may not be the user name.
 
 * **First start:** the database setup creates the administrator
   **user `admin`, password `Admin@123`**. You must choose a new password at the first sign-in.

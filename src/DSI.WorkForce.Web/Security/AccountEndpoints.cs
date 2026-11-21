@@ -49,7 +49,7 @@ public static class AccountEndpoints
             UserRepository users, HttpContext ctx) =>
         {
             if (ctx.User.UserId() is not { } id) return Results.Redirect("/account/login");
-            string? error = newPassword != confirmPassword ? "The new passwords do not match." : PasswordHasher.Validate(newPassword);
+            string? error = newPassword != confirmPassword ? "The new passwords do not match." : PasswordHasher.Validate(newPassword, ctx.User.Identity?.Name);
             if (error is null && !await users.ChangeOwnPasswordAsync(id, currentPassword ?? "", newPassword)) error = "The current password is wrong.";
             if (error is not null) return Results.Redirect($"/account/change-password?error={Uri.EscapeDataString(error)}");
 

@@ -10,7 +10,8 @@ namespace DSI.WorkForce.Worker.Services;
 /// de-duplicates by SHA-256 and enqueues files. Order is copy -> enqueue -> delete so a crash at any
 /// point never loses or double-processes a sheet.
 /// </summary>
-public sealed class HotFolderIngestionService(ScanQueueRepository queue, LicenseService licensing, IOptions<WorkerOptions> options, ILogger<HotFolderIngestionService> log)
+public sealed class HotFolderIngestionService(ScanQueueRepository queue, LicenseService licensing, WorkerSignals signals,
+    IOptions<WorkerOptions> options, ILogger<HotFolderIngestionService> log)
     : BackgroundService
 {
     private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase) { ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff" };
@@ -28,20 +29,44 @@ public sealed class HotFolderIngestionService(ScanQueueRepository queue, License
             log.LogInformation("Watching {Path} for template {Template}", f.Path, f.TemplateCode);
         }
 
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(_o.PollIntervalSeconds));
-        do
+        // File-system events wake the scan up immediately (uploads, scanners). Polling remains as the safety net,
+        // because events can be missed on network shares or when the share reconnects.
+        var watchers = new List<FileSystemWatcher>();
+        foreach (var f in _o.HotFolders.Where(f => Directory.Exists(f.Path)))
         {
-            // Not licensed: leave the files in the hot folder until the product is activated.
-            if (!(await licensing.GetAsync(stoppingToken)).IsValid) continue;
-            foreach (var folder in _o.HotFolders)
+            try
             {
-                try { await ScanFolderAsync(folder, stoppingToken); }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    log.LogError(ex, "Hot folder {Path} scan failed", folder.Path);   // e.g. share offline: retry next tick
-                }
+                var w = new FileSystemWatcher(f.Path) { IncludeSubdirectories = false, NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size };
+                w.Created += (_, _) => OnFileEvent();
+                w.Renamed += (_, _) => OnFileEvent();
+                w.Changed += (_, _) => OnFileEvent();
+                w.Error += (_, e) => log.LogWarning(e.GetException(), "File watcher error on {Path} - polling continues", f.Path);
+                w.EnableRaisingEvents = true;
+                watchers.Add(w);
             }
-        } while (await timer.WaitForNextTickAsync(stoppingToken));
+            catch (Exception ex) { log.LogWarning(ex, "Cannot watch {Path} - polling only", f.Path); }
+        }
+
+        try
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                // Not licensed: leave the files in the hot folder until the product is activated.
+                if ((await licensing.GetAsync(stoppingToken)).IsValid)
+                {
+                    foreach (var folder in _o.HotFolders)
+                    {
+                        try { await ScanFolderAsync(folder, stoppingToken); }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            log.LogError(ex, "Hot folder {Path} scan failed", folder.Path);   // e.g. share offline: retry next round
+                        }
+                    }
+                }
+                await signals.HotFolderChanged.WaitAsync(TimeSpan.FromSeconds(_o.PollIntervalSeconds), stoppingToken);
+            }
+        }
+        finally { foreach (var w in watchers) w.Dispose(); }
     }
 
     private async Task ScanFolderAsync(HotFolderOptions folder, CancellationToken ct)
@@ -82,7 +107,15 @@ public sealed class HotFolderIngestionService(ScanQueueRepository queue, License
 
             file.Delete();
             log.LogInformation("Queued {File} as ScanFile {Id} ({Template})", file.Name, id, folder.TemplateCode);
+            signals.QueueHasWork.Pulse();   // start processing now, don't wait for the next poll
         }
+    }
+
+    private void OnFileEvent()
+    {
+        signals.HotFolderChanged.Pulse();
+        // A file that is still being written is skipped until it has been stable for FileStableSeconds: look again then.
+        _ = Task.Delay(TimeSpan.FromSeconds(_o.FileStableSeconds + 0.5)).ContinueWith(_ => signals.HotFolderChanged.Pulse(), TaskScheduler.Default);
     }
 
     private void MoveToDuplicates(FileInfo file)

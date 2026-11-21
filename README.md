@@ -4,8 +4,8 @@
 
 Turns the handwritten **PC-011-A "Work Sheet Press Section"** forms into data in **MS SQL Server**, shown exactly like
 the **Daily Efficiency Report** Excel sheet, in a web app, a WPF desktop app, and directly in SQL views.
-Built for ~5,000 sheets/day without the UI ever doing OCR work (so nothing freezes or crashes): about 1.2 s
-per page per CPU core was measured, so 5,000 sheets take ~25–30 minutes on a 4-core server.
+Built for ~5,000 sheets/day without the UI ever doing OCR work (so nothing freezes or crashes). Including local
+handwriting OCR, about 1.7 s per page was measured on a 4-core PC (one page per core in parallel).
 
 ```mermaid
 flowchart LR

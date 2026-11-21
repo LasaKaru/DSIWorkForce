@@ -51,8 +51,10 @@
                 <label>Full name<input @bind="_edit.FullName" /></label>
                 <label>E-mail (optional)<input @bind="_edit.Email" type="email" /></label>
                 <label>@(_edit.UserId == 0 ? "Password" : "Reset password (leave empty to keep)")
-                    <input @bind="_password" type="password" autocomplete="new-password" />
+                    <input @bind="_password" @bind:event="oninput" type="@(_showPassword ? "text" : "password")" autocomplete="new-password"
+                           placeholder="at least @PasswordHasher.MinLength characters" />
                 </label>
+                <label class="check small"><input type="checkbox" @bind="_showPassword" /> Show password</label>
                 <label class="check"><input type="checkbox" @bind="_edit.MustChangePassword" /> Must change password at next sign-in</label>
                 <label class="check"><input type="checkbox" @bind="_edit.IsActive" /> Account enabled</label>
             </div>
@@ -85,7 +87,7 @@
     private List<UserRow> _users = new();
     private UserRow? _edit;
     private string? _password, _error;
-    private bool _saved;
+    private bool _saved, _showPassword;
 
     protected override async Task OnInitializedAsync() => await Load();
 
@@ -105,7 +107,8 @@
         Reset();
     }
 
-    private void Reset() { _password = null; _error = null; _saved = false; }
+    private void Reset() { _password = null; ClearMessages(); }
+    private void ClearMessages() { _error = null; _saved = false; }
 
     private void Toggle(string key, bool on)
     {
@@ -115,12 +118,12 @@
 
     private async Task Save()
     {
-        Reset();
+        ClearMessages();   // keep what the admin typed in the password box
         var e = _edit!;
         if (string.IsNullOrWhiteSpace(e.UserName) || string.IsNullOrWhiteSpace(e.FullName)) { _error = "User name and full name are required."; return; }
         if (e.UserId == 0 || !string.IsNullOrEmpty(_password))
         {
-            if (PasswordHasher.Validate(_password) is { } pwError) { _error = pwError; return; }
+            if (PasswordHasher.Validate(_password, e.UserName) is { } pwError) { _error = pwError; return; }
         }
 
         // License user limit

@@ -29,9 +29,12 @@ public static class PasswordHasher
         catch (FormatException) { return false; }
     }
 
-    /// <summary>Minimum rules: 8+ characters with letters and digits.</summary>
-    public static string? Validate(string? password) =>
-        password is null || password.Length < 8 ? "Password must be at least 8 characters."
-        : !password.Any(char.IsLetter) || !password.Any(char.IsDigit) ? "Password must contain letters and digits."
+    public const int MinLength = 6;
+
+    /// <summary>Rules: at least 6 characters, not only spaces, and not the same as the user name.</summary>
+    public static string? Validate(string? password, string? userName = null) =>
+        string.IsNullOrWhiteSpace(password) ? "Please enter a password."
+        : password.Length < MinLength ? $"Password must be at least {MinLength} characters."
+        : userName is not null && string.Equals(password.Trim(), userName.Trim(), StringComparison.OrdinalIgnoreCase) ? "Password must not be the same as the user name."
         : null;
 }

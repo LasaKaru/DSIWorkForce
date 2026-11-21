@@ -229,7 +229,7 @@ It is free and offline, and the model ships with the NuGet package. Settings in 
   "Recognizer": "Local",
   "EscalateTo": "None",
   "EscalateBelowConfidence": 0.85,
-  "Local": { "Model": "PPOCRv5", "Variants": 3, "CpuThreads": 2 }
+  "Local": { "Model": "PPOCRv5", "Variants": 3, "CpuThreads": 1 }
 }
 ```
 

@@ -98,9 +98,15 @@ public class LicensingAndSecurityTests
     }
 
     [Theory]
-    [InlineData("short1", false)]
-    [InlineData("onlyletters", false)]
-    [InlineData("12345678", false)]
-    [InlineData("Press2026", true)]
-    public void Password_rules(string pw, bool ok) => Assert.Equal(ok, PasswordHasher.Validate(pw) is null);
+    [InlineData("", false)]
+    [InlineData("abc12", false)]          // too short
+    [InlineData("nimal", false)]          // same as user name (and short)
+    [InlineData("Nimal1", true)]
+    [InlineData("press123", true)]
+    [InlineData("onlyletters", true)]     // normal passwords are fine
+    public void Password_rules(string pw, bool ok) => Assert.Equal(ok, PasswordHasher.Validate(pw, "nimal") is null);
+
+    [Fact]
+    public void Password_equal_to_user_name_is_rejected() =>
+        Assert.NotNull(PasswordHasher.Validate("Nimal123", "nimal123"));
 }

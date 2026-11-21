@@ -18,6 +18,12 @@ public interface IHandwritingRecognizer
     Task<IReadOnlyList<RecognitionResult>> RecognizeAsync(Mat alignedGray, IReadOnlyList<RecognitionRequest> requests, CancellationToken ct);
 }
 
+/// <summary>Recognizers with a slow first call (model loading) can be prepared when the Worker starts.</summary>
+public interface IWarmUp
+{
+    void WarmUp(int instances);
+}
+
 /// <summary>No AI: handwriting boxes go to the review screen with the image snippet next to an input box.</summary>
 public sealed class ManualKeyingRecognizer : IHandwritingRecognizer
 {

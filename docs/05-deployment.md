@@ -13,10 +13,21 @@
 [Optional] GPU01 with Ollama (if using the local VLM recognizer)
 ```
 
-**Capacity.** Measured on a 20-page test PDF: about **1.2 s per page on a single core**, including PDF rendering,
-alignment, OMR, blank detection and image encoding (calibration mode, which also writes overlay PNGs). With
-`MaxDegreeOfParallelism: 4` that is roughly 10,000+ pages/hour, so 5,000 sheets take about 25–30 minutes of
-processing even if they all arrive at once. A cloud/VLM recognizer adds its own latency; raise parallelism (or add a second
+**Capacity (measured, local handwriting OCR included).** 20-page test PDF on a 4-core machine:
+
+| Pages processed in parallel | Seconds per page | Sheets per hour |
+|---|---|---|
+| 1 (one core) | 4.5 | ~800 |
+| 4 (one per core, default) | **1.7** | **~2,100** |
+
+The Worker uses one page per CPU core automatically (`MaxDegreeOfParallelism: 0`), also for the pages of a single
+big PDF. 5,000 sheets therefore take about 2.5 hours of processing on a 4-core server, or ~1.3 hours on 8 cores.
+Since sheets arrive throughout the day (~3.5 per minute on average), there is plenty of headroom; add cores or a
+second Worker server (the queue supports several) for peaks. Memory: ~1.5 GB with 4 pages in parallel.
+
+**Pick-up delay.** New uploads and hot-folder files are noticed instantly (file-system events + internal signals),
+so processing starts about 2 seconds after the file is complete (`FileStableSeconds`). Polling every
+`PollIntervalSeconds` remains as a safety net for network shares. A cloud/VLM recognizer adds its own latency; raise parallelism (or add a second
 worker server: the queue is safe for multiple workers) if needed.
 
 **Storage.** Aligned images ~150–250 KB/page → ~1 GB/day. Set a retention policy (e.g. keep 13 months online,
@@ -31,11 +42,13 @@ Worker `appsettings.json`:
 | `Database:ConnectionString` | SQL Server connection (Integrated Security with the service account). |
 | `Worker:HotFolders[]` | `Path`, `TemplateCode`, `Station` for each scanner folder. |
 | `Worker:StagingRoot / DuplicatesFolder / ImageRoot` | Archive, duplicates, aligned images. |
-| `Worker:MaxDegreeOfParallelism` | Pages in parallel (≤ CPU cores). |
+| `Worker:MaxDegreeOfParallelism` | Pages in parallel across all files. `0` = automatic (one per CPU core, max 8). |
+| `Worker:MaxMemoryMb` | Memory guard: new pages wait while the Worker uses more than this. `0` = 75% of available memory. |
+| `Worker:FileStableSeconds` | A scanned file must be unchanged this long before it is picked up (default 2). |
 | `Worker:MaxAttempts` | After this many failures a file is parked as `Failed` (retry from the dashboard). |
 | `Extraction:Recognizer` | `Local` (PaddleOCR on CPU, default) / `AzureDocumentIntelligence` / `Ollama` / `None` (manual typing). |
 | `Extraction:EscalateTo`, `EscalateBelowConfidence` | Optional second engine for boxes read with low confidence (`None`, `AzureDocumentIntelligence`, `Ollama`; default threshold 0.85). |
-| `Extraction:Local:Model / Variants / CpuThreads` | `PPOCRv5` (default) or `EnglishV4`; image variants per box 1–3 (default 3); CPU threads per OCR engine (default 2). |
+| `Extraction:Local:Model / Variants / CpuThreads` | `PPOCRv5` (default) or `EnglishV4`; image variants per box 1–3 (default 3); CPU threads per OCR engine (default 1, fastest with one page per core). |
 | `Extraction:Azure:*`, `Extraction:Ollama:*` | Recognizer settings (put keys in environment variables, not in the file). |
 
 Web `appsettings.json`: `Database`, `Upload:HotFolders`. Users and permissions are managed in the app

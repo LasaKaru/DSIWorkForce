@@ -21,6 +21,7 @@ builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(Dat
 builder.Services.AddDsiData();
 builder.Services.AddDsiExtraction(builder.Configuration);
 builder.Services.AddSingleton<ReferenceDataCache>();
+builder.Services.AddSingleton<WorkerSignals>();
 
 var calibrate = args.Contains("--calibrate");
 if (!calibrate)

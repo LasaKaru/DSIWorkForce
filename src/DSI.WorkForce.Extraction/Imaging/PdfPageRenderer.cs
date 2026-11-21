@@ -9,13 +9,22 @@ namespace DSI.WorkForce.Extraction.Imaging;
 #pragma warning disable CA1416
 public static class PdfPageRenderer
 {
-    public static int GetPageCount(byte[] pdf) => Conversion.GetPageCount(pdf);
+    // PDFium (the native PDF engine) is not thread-safe: pages are processed in parallel, rendering is serialised.
+    // Rendering takes ~0.1 s per page versus seconds of OCR, so this lock is never the bottleneck.
+    private static readonly object PdfiumLock = new();
+
+    public static int GetPageCount(byte[] pdf) { lock (PdfiumLock) return Conversion.GetPageCount(pdf); }
 
     /// <summary>Caller owns (and must dispose) the returned Mat.</summary>
     public static Mat RenderPage(byte[] pdf, int pageIndex, int dpi)
     {
-        using var bitmap = Conversion.ToImage(pdf, pageIndex, options: new RenderOptions(Dpi: dpi, WithAnnotations: false));
-        using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        SKData data;
+        lock (PdfiumLock)
+        {
+            using var bitmap = Conversion.ToImage(pdf, pageIndex, options: new RenderOptions(Dpi: dpi, WithAnnotations: false));
+            data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        }
+        using var _ = data;
         return Cv2.ImDecode(data.ToArray(), ImreadModes.Grayscale);
     }
 

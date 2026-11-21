@@ -21,6 +21,9 @@ public sealed class FormExtractor(IHandwritingRecognizer recognizer, IOptions<Ex
 {
     private readonly ExtractionOptions _opt = options.Value;
 
+    /// <summary>Prepares the handwriting engine (model loading) before the first page arrives.</summary>
+    public void WarmUp(int instances) => (recognizer as IWarmUp)?.WarmUp(instances);
+
     public async Task<WorksheetExtraction> ExtractAsync(Mat pageGray, int pageNo, FormTemplateDefinition template,
         MasterDataSnapshot master, DateOnly referenceDate, CancellationToken ct)
     {

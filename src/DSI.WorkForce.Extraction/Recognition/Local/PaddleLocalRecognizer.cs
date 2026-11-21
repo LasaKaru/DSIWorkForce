@@ -18,7 +18,7 @@ namespace DSI.WorkForce.Extraction.Recognition.Local;
 /// No cloud, no GPU, no per-page cost. Each box is read from several cleaned image variants and the best reading
 /// that is valid for the field type wins (a number box must parse as a number, a date box as a date ...).
 /// </summary>
-public sealed class PaddleLocalRecognizer : IHandwritingRecognizer, IDisposable
+public sealed class PaddleLocalRecognizer : IHandwritingRecognizer, IWarmUp, IDisposable
 {
     private readonly RecognizationModel _model;
     private readonly LocalOcrOptions _o;
@@ -99,6 +99,14 @@ public sealed class PaddleLocalRecognizer : IHandwritingRecognizer, IDisposable
 
     /// <summary>A valid reading at or above this score is not re-read with other image variants.</summary>
     private const decimal GoodEnough = 0.85m;
+
+    /// <summary>Loads the model into <paramref name="instances"/> engines up front, so the first pages are not slowed down.</summary>
+    public void WarmUp(int instances)
+    {
+        var loaded = new List<PaddleOcrRecognizer>();
+        for (var i = _pool.Count; i < instances; i++) loaded.Add(Rent());
+        foreach (var e in loaded) _pool.Add(e);
+    }
 
     private PaddleOcrRecognizer Rent()
     {

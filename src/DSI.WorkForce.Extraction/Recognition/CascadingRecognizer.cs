@@ -8,8 +8,10 @@ namespace DSI.WorkForce.Extraction.Recognition;
 /// (paid / GPU) engine. Typical result: most boxes never leave the server, cost stays low.
 /// </summary>
 public sealed class CascadingRecognizer(IHandwritingRecognizer first, IHandwritingRecognizer second, decimal escalateBelow, ILogger log)
-    : IHandwritingRecognizer
+    : IHandwritingRecognizer, IWarmUp
 {
+    public void WarmUp(int instances) => (first as IWarmUp)?.WarmUp(instances);
+
     public string Name => $"{first.Name}+{second.Name}";
 
     public async Task<IReadOnlyList<RecognitionResult>> RecognizeAsync(Mat alignedGray, IReadOnlyList<RecognitionRequest> requests, CancellationToken ct)

@@ -34,8 +34,11 @@ public sealed class LocalOcrOptions
     public string Model { get; set; } = "PPOCRv5";
     /// <summary>Image variants tried per box (1-3). More = slightly slower, more robust on messy handwriting.</summary>
     public int Variants { get; set; } = 3;
-    /// <summary>CPU threads used by one recognizer instance (the Worker runs several pages in parallel).</summary>
-    public int CpuThreads { get; set; } = 2;
+    /// <summary>
+    /// CPU threads used by one OCR engine. 1 is fastest overall because the Worker already runs one page per core
+    /// (measured: 1.70 s/page with 4 cores x 1 thread vs 1.95 s/page with 4 pages x 2 threads).
+    /// </summary>
+    public int CpuThreads { get; set; } = 1;
 }
 
 public sealed class AzureDocumentIntelligenceOptions
