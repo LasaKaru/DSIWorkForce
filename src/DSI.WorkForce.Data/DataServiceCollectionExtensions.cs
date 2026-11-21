@@ -14,6 +14,9 @@ public static class DataServiceCollectionExtensions
         services.AddSingleton<WorksheetRepository>();
         services.AddSingleton<ReportRepository>();
         services.AddSingleton<DiagnosticsRepository>();
+        services.AddSingleton<UserRepository>();
+        services.AddSingleton<LicenseRepository>();
+        services.AddSingleton<LicenseService>();
         return services;
     }
 }

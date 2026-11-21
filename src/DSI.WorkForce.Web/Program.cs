@@ -2,8 +2,8 @@ using DSI.WorkForce.Data;
 using DSI.WorkForce.Web;
 using DSI.WorkForce.Web.Api;
 using DSI.WorkForce.Web.Components;
+using DSI.WorkForce.Web.Security;
 using DSI.WorkForce.Web.Services;
-using Microsoft.AspNetCore.Authentication.Negotiate;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,30 +15,8 @@ builder.Services.Configure<UploadOptions>(builder.Configuration.GetSection(Uploa
 builder.Services.AddDsiData();
 builder.Services.AddSingleton<UploadService>();
 
-// ---- Authentication: Windows (AD) single sign-on on the factory network ----
-var auth = builder.Configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>() ?? new AuthOptions();
-if (auth.Mode.Equals("Windows", StringComparison.OrdinalIgnoreCase))
-{
-    builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme).AddNegotiate();
-    builder.Services.AddAuthorization(o =>
-    {
-        o.FallbackPolicy = o.DefaultPolicy;   // every page requires a signed-in user
-        o.AddPolicy(Policies.Reviewer, p => { p.RequireAuthenticatedUser(); if (auth.ReviewerRoles.Count > 0) p.RequireRole(auth.ReviewerRoles.Concat(auth.AdminRoles)); });
-        o.AddPolicy(Policies.Admin, p => { p.RequireAuthenticatedUser(); if (auth.AdminRoles.Count > 0) p.RequireRole(auth.AdminRoles); });
-    });
-}
-else
-{
-    if (!builder.Environment.IsDevelopment())
-        throw new InvalidOperationException("Auth:Mode=None is only allowed in Development.");
-    builder.Services.AddAuthentication();
-    builder.Services.AddAuthorization(o =>
-    {
-        o.AddPolicy(Policies.Reviewer, p => p.RequireAssertion(_ => true));
-        o.AddPolicy(Policies.Admin, p => p.RequireAssertion(_ => true));
-    });
-}
-builder.Services.AddCascadingAuthenticationState();
+// Users, permissions (Admin > Users) and cookie sign-in.
+builder.Services.AddDsiAuth();
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddHealthChecks();
@@ -58,10 +36,12 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseSerilogRequestLogging();
 app.UseAuthentication();
+app.UseLicenseGate();          // no valid license -> everything except /license and sign-in is locked
 app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapHealthChecks("/health").AllowAnonymous();
+app.MapAccountEndpoints();
 app.MapDsiApi();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 

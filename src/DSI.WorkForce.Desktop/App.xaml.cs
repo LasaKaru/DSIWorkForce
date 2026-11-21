@@ -14,7 +14,14 @@ public partial class App : Application
 
         var settings = DesktopSettings.Load();
         var api = new ApiClient(settings);
+
+        // Sign in first (same user accounts and permissions as the web app).
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        if (new LoginWindow(api).ShowDialog() != true) { Shutdown(); return; }
+        ShutdownMode = ShutdownMode.OnMainWindowClose;
+
         var window = new MainWindow { DataContext = new MainViewModel(api, settings) };
+        MainWindow = window;
         window.Show();
     }
 

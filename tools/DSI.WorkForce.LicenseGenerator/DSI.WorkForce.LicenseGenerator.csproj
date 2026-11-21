@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Helao2 internal tool: creates signed license keys. Do NOT ship to customers. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>DSI.WorkForce.LicenseGenerator</RootNamespace>
+    <AssemblyName>Helao2.LicenseGenerator</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DSI.WorkForce.Core\DSI.WorkForce.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="dev-keys\dev-private-key.pem" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

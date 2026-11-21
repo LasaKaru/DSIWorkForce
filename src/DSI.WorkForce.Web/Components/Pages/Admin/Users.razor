@@ -1,0 +1,145 @@
+@page "/admin/users"
+@attribute [Authorize(Policy = Permissions.Users)]
+@using DSI.WorkForce.Core.Security
+@using DSI.WorkForce.Data
+@inject UserRepository UserRepo
+@inject LicenseService Licensing
+
+<PageTitle>Users &amp; permissions - DSI WorkForce</PageTitle>
+<div class="page-head">
+    <div>
+        <h1>Users &amp; permissions</h1>
+        <p class="muted">Tick what each person may do. Changes apply within a minute (open sessions are refreshed or signed out).</p>
+    </div>
+    <button class="btn primary" @onclick="New"><Icon Name="plus" /> New user</button>
+</div>
+
+<div class="split @(_edit is null ? "" : "with-editor")">
+    <div class="card">
+        <table class="grid">
+            <thead><tr><th>User</th><th>Status</th><th>Permissions</th><th>Last sign-in</th></tr></thead>
+            <tbody>
+                @foreach (var u in _users)
+                {
+                    <tr class="clickable @(u.UserId == _edit?.UserId ? "selected" : "")" @onclick="() => Edit(u)">
+                        <td><b>@u.FullName</b><div class="muted small">@u.UserName</div></td>
+                        <td>
+                            @if (!u.IsActive) { <span class="badge rejected">Disabled</span> }
+                            else if (u.LockedUntil > DateTime.UtcNow) { <span class="badge needsreview">Locked</span> }
+                            else { <span class="badge autoapproved">Active</span> }
+                        </td>
+                        <td>
+                            @if (u.Permissions.Contains(Permissions.Admin)) { <span class="chip strong">Administrator</span> }
+                            else { @foreach (var p in u.Permissions) { <span class="chip">@Title(p)</span> } }
+                        </td>
+                        <td class="muted small">@(u.LastLoginAt?.ToLocalTime().ToString("g") ?? "never")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_edit is not null)
+    {
+        <div class="card editor">
+            <div class="editor-head">
+                <h2>@(_edit.UserId == 0 ? "New user" : _edit.FullName)</h2>
+                <button class="icon-btn" @onclick="() => _edit = null" title="Close"><Icon Name="x" /></button>
+            </div>
+            <div class="form">
+                <label>User name<input @bind="_edit.UserName" disabled="@(_edit.UserId != 0)" placeholder="e.g. nimal" /></label>
+                <label>Full name<input @bind="_edit.FullName" /></label>
+                <label>E-mail (optional)<input @bind="_edit.Email" type="email" /></label>
+                <label>@(_edit.UserId == 0 ? "Password" : "Reset password (leave empty to keep)")
+                    <input @bind="_password" type="password" autocomplete="new-password" />
+                </label>
+                <label class="check"><input type="checkbox" @bind="_edit.MustChangePassword" /> Must change password at next sign-in</label>
+                <label class="check"><input type="checkbox" @bind="_edit.IsActive" /> Account enabled</label>
+            </div>
+
+            <h3>Permissions</h3>
+            <div class="perm-list">
+                @foreach (var (key, title, description) in Permissions.All)
+                {
+                    var isAdmin = _edit.Permissions.Contains(Permissions.Admin);
+                    var implied = isAdmin && key != Permissions.Admin;
+                    <label class="perm @(implied ? "implied" : "")">
+                        <input type="checkbox" checked="@(_edit.Permissions.Contains(key) || implied)" disabled="@implied"
+                               @onchange="e => Toggle(key, (bool)e.Value!)" />
+                        <span><b>@title</b><small>@description</small></span>
+                    </label>
+                }
+            </div>
+
+            @if (_error is not null) { <div class="alert error"><Icon Name="alert" /> @_error</div> }
+            @if (_saved) { <div class="alert success"><Icon Name="check" /> Saved.</div> }
+            <div class="actions-row">
+                <button class="btn primary" @onclick="Save">Save</button>
+                <button class="btn" @onclick="() => _edit = null">Cancel</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<UserRow> _users = new();
+    private UserRow? _edit;
+    private string? _password, _error;
+    private bool _saved;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load() => _users = (await UserRepo.ListAsync()).ToList();
+
+    private static string Title(string key) => Permissions.All.FirstOrDefault(p => p.Key == key).Title ?? key;
+
+    private void New() { _edit = new UserRow { IsActive = true, MustChangePassword = true, Permissions = new(StringComparer.OrdinalIgnoreCase) { Permissions.Scan } }; Reset(); }
+
+    private void Edit(UserRow u)
+    {
+        _edit = new UserRow
+        {
+            UserId = u.UserId, UserName = u.UserName, FullName = u.FullName, Email = u.Email, IsActive = u.IsActive,
+            MustChangePassword = u.MustChangePassword, Permissions = new(u.Permissions, StringComparer.OrdinalIgnoreCase),
+        };
+        Reset();
+    }
+
+    private void Reset() { _password = null; _error = null; _saved = false; }
+
+    private void Toggle(string key, bool on)
+    {
+        if (on) _edit!.Permissions.Add(key); else _edit!.Permissions.Remove(key);
+        if (key == Permissions.Admin && on) _edit.Permissions.RemoveWhere(p => p != Permissions.Admin);
+    }
+
+    private async Task Save()
+    {
+        Reset();
+        var e = _edit!;
+        if (string.IsNullOrWhiteSpace(e.UserName) || string.IsNullOrWhiteSpace(e.FullName)) { _error = "User name and full name are required."; return; }
+        if (e.UserId == 0 || !string.IsNullOrEmpty(_password))
+        {
+            if (PasswordHasher.Validate(_password) is { } pwError) { _error = pwError; return; }
+        }
+
+        // License user limit
+        var license = await Licensing.GetAsync();
+        var wasActive = _users.FirstOrDefault(u => u.UserId == e.UserId)?.IsActive ?? false;
+        if (e.IsActive && !wasActive && license.License?.MaxUsers is { } max && _users.Count(u => u.IsActive) >= max)
+        {
+            _error = $"Your license allows {max} active users. Disable another user or contact {LicenseService.SupportEmail}.";
+            return;
+        }
+
+        try
+        {
+            e.UserId = await UserRepo.SaveAsync(e, _password);
+            await Load();
+            _password = null;
+            _saved = true;
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 2601 or 2627) { _error = $"User name '{e.UserName}' already exists."; }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
+    }
+}

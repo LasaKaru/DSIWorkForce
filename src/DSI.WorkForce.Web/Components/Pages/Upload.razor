@@ -1,5 +1,5 @@
 @page "/upload"
-@attribute [Authorize(Policy = Policies.Reviewer)]
+@attribute [Authorize(Policy = Permissions.Scan)]
 @inject UploadService Uploads
 @inject AuthenticationStateProvider Auth
 

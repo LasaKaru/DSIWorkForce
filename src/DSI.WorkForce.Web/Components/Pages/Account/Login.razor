@@ -1,0 +1,21 @@
+@page "/account/login"
+@layout Layout.BareLayout
+@attribute [AllowAnonymous]
+
+<PageTitle>Sign in - DSI WorkForce</PageTitle>
+<h1>Sign in</h1>
+@if (!string.IsNullOrEmpty(Error)) { <div class="alert error"><Icon Name="alert" /> @Error</div> }
+
+<form method="post" action="account/login" class="form">
+    <AntiforgeryToken />
+    <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+    <label>User name<input name="userName" autocomplete="username" required autofocus /></label>
+    <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
+    <button class="btn primary block" type="submit">Sign in</button>
+</form>
+<p class="muted small">Forgot your password? Ask an administrator to reset it on <b>Users &amp; permissions</b>.</p>
+
+@code {
+    [SupplyParameterFromQuery] public string? Error { get; set; }
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+}

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using DSI.WorkForce.Data;
 using DSI.WorkForce.Data.Repositories;
 using DSI.WorkForce.Extraction;
 using DSI.WorkForce.Extraction.Imaging;
@@ -19,6 +20,7 @@ public sealed class ExtractionWorker(
     WorksheetRepository worksheets,
     ReferenceDataCache reference,
     DiagnosticsRepository diagnostics,
+    LicenseService licensing,
     FormExtractor extractor,
     IOptions<WorkerOptions> options,
     ILogger<ExtractionWorker> log) : BackgroundService
@@ -26,6 +28,7 @@ public sealed class ExtractionWorker(
     private static readonly string Version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0";
     private readonly WorkerOptions _o = options.Value;
     private int _pagesSinceHeartbeat;
+    private DateTime _lastLicenseWarning = DateTime.MinValue;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -42,6 +45,20 @@ public sealed class ExtractionWorker(
                 {
                     await queue.HeartbeatAsync(_o.WorkerName, Version, Interlocked.Exchange(ref _pagesSinceHeartbeat, 0), stoppingToken);
                     lastBeat = DateTime.UtcNow;
+                }
+
+                var license = await licensing.GetAsync(stoppingToken);
+                if (!license.IsValid)
+                {
+                    // Product not activated / expired: do no work. Scans wait safely until a key is entered on the web.
+                    if (DateTime.UtcNow - _lastLicenseWarning > TimeSpan.FromMinutes(5))
+                    {
+                        log.LogWarning("Processing paused - {Message} Activate the product on the web (License page) or contact {Mail}.",
+                            license.Message, LicenseService.SupportEmail);
+                        _lastLicenseWarning = DateTime.UtcNow;
+                    }
+                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                    continue;
                 }
 
                 var batch = await queue.ClaimBatchAsync(_o.WorkerName, _o.BatchSize, TimeSpan.FromMinutes(_o.LeaseMinutes), stoppingToken);

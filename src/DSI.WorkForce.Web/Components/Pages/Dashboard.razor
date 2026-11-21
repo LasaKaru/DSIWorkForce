@@ -1,60 +1,135 @@
 @page "/"
-@attribute [Authorize(Policy = Policies.Reviewer)]
+@attribute [Authorize]
 @inject WorksheetRepository Worksheets
 @inject ScanQueueRepository Queue
+@inject AuthenticationStateProvider Auth
 
 <PageTitle>Dashboard - DSI WorkForce</PageTitle>
-<h1>Dashboard</h1>
+<div class="page-head">
+    <div>
+        <h1>Good @Greeting, @_name</h1>
+        <p class="muted">@DateTime.Now.ToString("dddd, d MMMM yyyy") · press-section worksheets</p>
+    </div>
+    <button class="btn" @onclick="Load"><Icon Name="refresh" /> Refresh</button>
+</div>
+
+@if (PasswordChanged) { <div class="alert success"><Icon Name="check" /> Your password was changed.</div> }
 
 @if (_d is null) { <p>Loading…</p> }
 else
 {
     <div class="tiles">
-        <div class="tile"><label>Sheets today</label><b>@_d.SheetsToday</b></div>
-        <div class="tile good"><label>Auto-approved today</label><b>@_d.AutoApprovedToday</b></div>
-        <div class="tile warn"><a href="review"><label>Waiting for review</label><b>@_d.NeedsReviewTotal</b></a></div>
-        <div class="tile"><label>Verified today</label><b>@_d.VerifiedToday</b></div>
-        <div class="tile"><label>Files queued / processing</label><b>@_d.PendingFiles / @_d.ProcessingFiles</b></div>
-        <div class="tile @(_d.FailedFiles > 0 ? "bad" : "")"><label>Failed files</label><b>@_d.FailedFiles</b></div>
+        <Tile Icon="file" Label="Sheets today" Value="@_d.SheetsToday" />
+        <Tile Icon="check" Label="Auto-approved today" Value="@_d.AutoApprovedToday" Tone="good"
+              Hint="@(_d.SheetsToday > 0 ? $"{100.0 * _d.AutoApprovedToday / _d.SheetsToday:0}% without a human" : null)" />
+        <Tile Icon="review" Label="Waiting for review" Value="@_d.NeedsReviewTotal" Tone="@(_d.NeedsReviewTotal > 0 ? "warn" : "")" Href="@(_canReview ? "review" : null)" />
+        <Tile Icon="shield" Label="Verified today" Value="@_d.VerifiedToday" Tone="info" />
+        <Tile Icon="queue" Label="Files queued / processing" Text="@($"{_d.PendingFiles} / {_d.ProcessingFiles}")" />
+        <Tile Icon="alert" Label="Failed files" Value="@_d.FailedFiles" Tone="@(_d.FailedFiles > 0 ? "bad" : "")" />
     </div>
-    <p class="muted">
-        Worker heartbeat:
-        @if (_d.LastWorkerHeartbeatUtc is { } hb)
-        {
-            var age = DateTime.UtcNow - DateTime.SpecifyKind(hb, DateTimeKind.Utc);
-            <span class="@(age.TotalMinutes > 2 ? "error" : "")">@hb.ToLocalTime().ToString("g") (@((int)age.TotalSeconds) s ago)</span>
-        }
-        else { <span class="error">never - is the DSI WorkForce Worker service running?</span> }
-    </p>
+
+    <div class="dash-grid">
+        <div class="card">
+            <div class="card-head"><h2>Last 14 days</h2>
+                <span class="legend"><i class="sw auto"></i>Auto-approved <i class="sw ver"></i>Verified <i class="sw rev"></i>Waiting</span></div>
+            <div class="bars">
+                @{ var max = Math.Max(1, _days.Max(x => x.Sheets)); }
+                @foreach (var day in _days)
+                {
+                    <div class="bar-col" title="@($"{day.Day:ddd d MMM}: {day.Sheets} sheet(s), {day.AutoApproved} auto-approved, {day.Verified} verified, {day.NeedsReview} waiting")">
+                        <div class="bar-stack" style="height:@(Pct(day.Sheets, max))%">
+                            <div class="seg rev" style="flex:@day.NeedsReview"></div>
+                            <div class="seg ver" style="flex:@day.Verified"></div>
+                            <div class="seg auto" style="flex:@day.AutoApproved"></div>
+                        </div>
+                        <span class="bar-label">@day.Day.ToString("dd")</span>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-head"><h2>System</h2></div>
+            <ul class="status-list">
+                <li>
+                    @if (_d.LastWorkerHeartbeatUtc is { } hb)
+                    {
+                        var age = DateTime.UtcNow - DateTime.SpecifyKind(hb, DateTimeKind.Utc);
+                        <span class="dot @(age.TotalMinutes > 2 ? "bad" : "good")"></span>
+                        <span>Worker @(age.TotalMinutes > 2 ? "not responding" : "running")<small>last heartbeat @((int)age.TotalSeconds) s ago</small></span>
+                    }
+                    else { <span class="dot bad"></span><span>Worker never started<small>start the DSI WorkForce Worker service</small></span> }
+                </li>
+                <li><span class="dot @(_d.FailedFiles > 0 ? "bad" : "good")"></span><span>@_d.FailedFiles failed file(s)<small>@_d.PendingFiles waiting in the queue</small></span></li>
+            </ul>
+            <div class="quick">
+                @if (_canReview) { <a class="btn primary" href="review"><Icon Name="review" /> Start reviewing</a> }
+                @if (_canScan) { <a class="btn" href="upload"><Icon Name="upload" /> Upload scans</a> }
+                @if (_canReports) { <a class="btn" href="reports"><Icon Name="reports" /> Reports</a> }
+            </div>
+        </div>
+    </div>
+
+    @if (_canReview && _recent.Count > 0)
+    {
+        <div class="card">
+            <div class="card-head"><h2>Recently scanned</h2><a href="review" class="small">Open review queue →</a></div>
+            <table class="grid">
+                <thead><tr><th>Sheet</th><th>Status</th><th>Date</th><th>Shift</th><th>Press</th><th>EPF</th><th>Issues</th><th>Scanned</th></tr></thead>
+                <tbody>
+                    @foreach (var r in _recent)
+                    {
+                        <tr class="clickable" @onclick="@(() => Nav.NavigateTo($"review/{r.WorksheetId}"))">
+                            <td>#@r.WorksheetId</td><td><StatusBadge Status="@r.Status" /></td><td>@r.WorkDate?.ToString("dd/MM/yyyy")</td>
+                            <td>@r.Shift</td><td>@r.ResourceNo</td><td>@r.EpfNo</td><td>@r.OpenIssues</td><td class="muted">@r.CreatedAt.ToLocalTime().ToString("g")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
 
     @if (_failed.Count > 0)
     {
-        <h2>Failed files</h2>
-        <table class="grid">
-            <thead><tr><th>Id</th><th>File</th><th>Attempts</th><th>Error</th><th>Received</th></tr></thead>
-            <tbody>
-                @foreach (var f in _failed)
-                {
-                    <tr><td>@f.ScanFileId</td><td>@f.FileName</td><td>@f.Attempts</td><td class="wrap">@f.LastError</td><td>@f.ReceivedAt.ToLocalTime().ToString("g")</td></tr>
-                }
-            </tbody>
-        </table>
-        <AuthorizeView Policy="@Policies.Admin">
-            <button class="btn" @onclick="RetryFailed">Retry all failed files</button>
-        </AuthorizeView>
+        <div class="card">
+            <div class="card-head"><h2>Failed files</h2>
+                @if (_isAdmin) { <button class="btn" @onclick="RetryFailed"><Icon Name="refresh" /> Retry all</button> }</div>
+            <table class="grid">
+                <thead><tr><th>Id</th><th>File</th><th>Attempts</th><th>Error</th><th>Received</th></tr></thead>
+                <tbody>@foreach (var f in _failed) { <tr><td>@f.ScanFileId</td><td>@f.FileName</td><td>@f.Attempts</td><td class="wrap">@f.LastError</td><td>@f.ReceivedAt.ToLocalTime().ToString("g")</td></tr> }</tbody>
+            </table>
+        </div>
     }
 }
 
 @code {
-    private DashboardDto? _d;
-    private List<(long ScanFileId, string FileName, int Attempts, string? LastError, DateTime ReceivedAt)> _failed = new();
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+    [SupplyParameterFromQuery] public bool PasswordChanged { get; set; }
 
-    protected override async Task OnInitializedAsync() => await Load();
+    private DashboardDto? _d;
+    private IReadOnlyList<WorksheetRepository.DailyCount> _days = [];
+    private IReadOnlyList<WorksheetSummaryDto> _recent = [];
+    private List<(long ScanFileId, string FileName, int Attempts, string? LastError, DateTime ReceivedAt)> _failed = new();
+    private string _name = "";
+    private bool _canReview, _canScan, _canReports, _isAdmin;
+
+    private static string Greeting => DateTime.Now.Hour >= 17 ? "evening" : DateTime.Now.Hour >= 12 ? "afternoon" : "morning";
+    private static double Pct(int v, int max) => v == 0 ? 2 : Math.Max(4, 100.0 * v / max);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var u = (await Auth.GetAuthenticationStateAsync()).User;
+        _name = (u.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value ?? u.Identity?.Name ?? "").Split(' ')[0];
+        (_canReview, _canScan, _canReports, _isAdmin) = (u.Can(Permissions.Review), u.Can(Permissions.Scan), u.Can(Permissions.Reports), u.Can(Permissions.Admin));
+        await Load();
+    }
 
     private async Task Load()
     {
         _d = await Worksheets.GetDashboardAsync();
-        _failed = (await Queue.GetFailedAsync(50)).ToList();
+        _days = await Worksheets.GetDailyCountsAsync(14);
+        _recent = _canReview ? await Worksheets.GetRecentAsync(8) : [];
+        _failed = (await Queue.GetFailedAsync(20)).ToList();
     }
 
     private async Task RetryFailed()

@@ -1,0 +1,22 @@
+@if (Href is null) { <div class="tile @Tone">@Inner</div> }
+else { <a class="tile link @Tone" href="@Href">@Inner</a> }
+
+@code {
+    [Parameter] public string Icon { get; set; } = "dot";
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public int? Value { get; set; }
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public string? Tone { get; set; }
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public string? Href { get; set; }
+
+    private RenderFragment Inner => __builder =>
+    {
+        <span class="tile-icon"><DSI.WorkForce.Web.Components.Shared.Icon Name="@Icon" Size="20" /></span>
+        <span class="tile-body">
+            <label>@Label</label>
+            <b>@(Text ?? Value?.ToString("N0"))</b>
+            @if (Hint is not null) { <small>@Hint</small> }
+        </span>
+    };
+}

@@ -1,5 +1,7 @@
 # DSI WorkForce – Press Worksheet Digitization (.NET 8 + SQL Server)
 
+© 2026 **Helao2 (Pvt) Ltd**. All rights reserved. Licensed product. Support: support@helao2.com
+
 Turns the handwritten **PC-011-A "Work Sheet Press Section"** forms into data in **MS SQL Server**, shown exactly like
 the **Daily Efficiency Report** Excel sheet, in a web app, a WPF desktop app, and directly in SQL views.
 Built for ~5,000 sheets/day without the UI ever doing OCR work (so nothing freezes or crashes): about 1.2 s
@@ -27,6 +29,7 @@ flowchart LR
 | `src/DSI.WorkForce.Extraction` | PDF → image (PDFium), page alignment (OpenCV), **tick-box OMR**, per-cell blank detection, pluggable handwriting recognizers (manual, Azure AI Document Intelligence, local Ollama VLM). |
 | `src/DSI.WorkForce.Worker` | Windows Service: watches scanner hot folders, processes the queue in parallel, plus a `--calibrate` tool. |
 | `src/DSI.WorkForce.Web` | ASP.NET Core 8 Blazor Server: dashboard, split-screen review, Excel-like reports + Excel export, report-column admin, upload, JSON API. Windows (AD) login. |
+| `tools/DSI.WorkForce.LicenseGenerator` | **Helao2 internal**: creates signed license keys (trial / subscription / perpetual). Not shipped to customers. |
 | `src/DSI.WorkForce.Desktop` | WPF (.NET 8) client: scan station (auto-upload a scanner folder), review screen, Excel-like report grid. Uses the web API. |
 | `src/DSI.WorkForce.DbMigrator` | One command to create/upgrade the database, import templates and build the report views. |
 | `templates/forms/PC-011-A.v1.json` | The paper form as data: 36 fields, their positions, types and rules. |
@@ -74,7 +77,7 @@ dotnet run --project src/DSI.WorkForce.Web --launch-profile https     # -> https
 # 4. Desktop app: open DSIWorkForce.sln in Visual Studio 2022, start DSI.WorkForce.Desktop
 ```
 
-Tests: `dotnet test tests/DSI.WorkForce.Tests` (53 tests: normalization, matching, OMR, rules, report SQL,
+Tests: `dotnet test tests/DSI.WorkForce.Tests` (72 tests: normalization, matching, OMR, rules, report SQL,
 and **T-SQL syntax of every script and query**, checked with Microsoft's ScriptDom parser).
 Set `DSI_SAMPLE_PDF=C:\path\scan.pdf` to also run the real-scan integration test.
 Scans are not committed because they contain employee data.
@@ -87,6 +90,15 @@ Scans are not committed because they contain employee data.
 4. [Form redesign recommendations](docs/04-form-redesign.md): small print changes that remove most manual typing.
 5. [Deployment & operations](docs/05-deployment.md): IIS, Windows Service, accounts, sizing, backups, monitoring.
 6. [Run it in Visual Studio 2022](docs/06-visual-studio-2022.md): install, create the DB, run Worker + Web + WPF, try a scan.
+7. [Users, permissions & licensing](docs/07-users-permissions-licensing.md): sign-in, permissions, master data, license keys and the generator.
+
+## Sign-in, permissions and license
+
+* First sign-in: **admin / Admin@123** (you must change it). Create users and tick their permissions on
+  *Administration › Users & permissions* (Scan, Review, Reports, Master data, Report columns, Users, License, or Administrator).
+* The product needs a license key from Helao2. Until one is activated (or after it expires) every page is locked
+  and shows the activation page. Developers can create test keys with the license generator (Debug builds only).
+  See [docs/07](docs/07-users-permissions-licensing.md).
 
 ## Things to confirm with production
 

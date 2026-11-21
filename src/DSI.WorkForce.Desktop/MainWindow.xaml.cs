@@ -12,8 +12,8 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel vm) return;
-        await vm.Reports.LoadReportsCommand.ExecuteAsync(null);
-        await vm.Review.RefreshCommand.ExecuteAsync(null);
+        if (vm.CanReports) await vm.Reports.LoadReportsCommand.ExecuteAsync(null);
+        if (vm.CanReview) await vm.Review.RefreshCommand.ExecuteAsync(null);
     }
 
     /// <summary>

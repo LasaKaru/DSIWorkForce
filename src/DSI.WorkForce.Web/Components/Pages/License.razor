@@ -1,0 +1,102 @@
+@page "/license"
+@layout Layout.BareLayout
+@attribute [AllowAnonymous]
+@using DSI.WorkForce.Core.Licensing
+@using DSI.WorkForce.Core.Security
+@using DSI.WorkForce.Data
+@using DSI.WorkForce.Web.Security
+@inject LicenseService Licensing
+@inject AuthenticationStateProvider Auth
+
+<PageTitle>Product activation - DSI WorkForce</PageTitle>
+
+<div class="license-hero">
+    <img src="img/helao2-logo.png" alt="Helao2" />
+    <h1>Product activation</h1>
+    <p class="muted">DSI WorkForce OCR &amp; worksheet digitization by Helao2 (Pvt) Ltd</p>
+</div>
+
+@if (_check is null) { <p>Checking license…</p> }
+else
+{
+    <div class="license-status @(_check.IsValid ? "ok" : "bad")">
+        <Icon Name="@(_check.IsValid ? "shield" : "lock")" Size="22" />
+        <div>
+            <b>@(_check.IsValid ? "Licensed" : _check.Status == LicenseStatus.Missing ? "Not activated" : "License not valid")</b>
+            <div>@_check.Message</div>
+            @if (_check.License is { } l)
+            {
+                <dl class="facts">
+                    <dt>Licensed to</dt><dd>@l.LicensedTo</dd>
+                    <dt>Type</dt><dd>@l.Type</dd>
+                    <dt>Expires</dt><dd>@(l.ExpiresUtc is { } e ? $"{e.ToLocalTime():d MMM yyyy} ({_check.DaysLeft} day(s) left)" : "Never (perpetual)")</dd>
+                    @if (l.MaxUsers is { } mu) { <dt>Users</dt><dd>up to @mu active users</dd> }
+                    <dt>License ID</dt><dd class="mono">@l.LicenseId</dd>
+                </dl>
+            }
+        </div>
+    </div>
+
+    <div class="contact-box">
+        <Icon Name="mail" Size="20" />
+        <div>
+            To buy, renew or extend a license contact <a href="@MailTo"><b>@LicenseService.SupportEmail</b></a>
+            and include your installation ID:
+            <div class="install-id"><span class="mono">@Licensing.InstallationId</span></div>
+        </div>
+    </div>
+
+    @if (_canActivate)
+    {
+        <label class="key-label">License key</label>
+        <textarea class="key-input mono" rows="5" @bind="_key" @bind:event="oninput" placeholder="HLO2-…  (paste the full key you received from Helao2)"></textarea>
+        <div class="actions-row">
+            <button class="btn primary" @onclick="Activate" disabled="@(_busy || string.IsNullOrWhiteSpace(_key))">
+                <Icon Name="check" /> Validate &amp; activate
+            </button>
+            @if (_check.IsValid) { <a class="btn" href="">Continue to the dashboard</a> }
+        </div>
+        @if (_result is not null)
+        {
+            <div class="alert @(_result.IsValid ? "success" : "error")">
+                <Icon Name="@(_result.IsValid ? "check" : "alert")" /> @_result.Message
+            </div>
+        }
+    }
+    else if (!_signedIn)
+    {
+        <p class="center"><a class="btn primary" href="account/login?returnUrl=%2Flicense">Sign in as administrator to activate</a></p>
+    }
+    else
+    {
+        <div class="alert">Only users with the <b>License</b> permission can activate the product. Please contact your administrator.</div>
+        @if (_check.IsValid) { <p><a class="btn" href="">Continue to the dashboard</a></p> }
+    }
+}
+
+@code {
+    private LicenseCheck? _check, _result;
+    private string? _key;
+    private bool _busy, _canActivate, _signedIn;
+    private string _userName = "";
+
+    private string MailTo => $"mailto:{LicenseService.SupportEmail}?subject={Uri.EscapeDataString("DSI WorkForce license")}" +
+                             $"&body={Uri.EscapeDataString($"Installation ID: {Licensing.InstallationId}\nCompany: \nLicense type (trial / subscription / perpetual): \n")}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await Auth.GetAuthenticationStateAsync()).User;
+        _signedIn = user.Identity?.IsAuthenticated == true;
+        _canActivate = user.Can(Permissions.License);
+        _userName = user.Identity?.Name ?? "";
+        _check = await Licensing.GetAsync();
+    }
+
+    private async Task Activate()
+    {
+        _busy = true;
+        _result = await Licensing.ActivateAsync(_key!, _userName);
+        if (_result.IsValid) { _check = _result; _key = null; }
+        _busy = false;
+    }
+}

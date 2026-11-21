@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using DSI.WorkForce.Data;
 using DSI.WorkForce.Data.Repositories;
 using Microsoft.Extensions.Options;
 
@@ -9,7 +10,7 @@ namespace DSI.WorkForce.Worker.Services;
 /// de-duplicates by SHA-256 and enqueues files. Order is copy -> enqueue -> delete so a crash at any
 /// point never loses or double-processes a sheet.
 /// </summary>
-public sealed class HotFolderIngestionService(ScanQueueRepository queue, IOptions<WorkerOptions> options, ILogger<HotFolderIngestionService> log)
+public sealed class HotFolderIngestionService(ScanQueueRepository queue, LicenseService licensing, IOptions<WorkerOptions> options, ILogger<HotFolderIngestionService> log)
     : BackgroundService
 {
     private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase) { ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff" };
@@ -30,6 +31,8 @@ public sealed class HotFolderIngestionService(ScanQueueRepository queue, IOption
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(_o.PollIntervalSeconds));
         do
         {
+            // Not licensed: leave the files in the hot folder until the product is activated.
+            if (!(await licensing.GetAsync(stoppingToken)).IsValid) continue;
             foreach (var folder in _o.HotFolders)
             {
                 try { await ScanFolderAsync(folder, stoppingToken); }

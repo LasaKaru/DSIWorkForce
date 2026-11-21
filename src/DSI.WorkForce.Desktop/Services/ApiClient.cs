@@ -17,8 +17,31 @@ public sealed class ApiClient
 
     public ApiClient(DesktopSettings settings)
     {
-        var handler = new HttpClientHandler { UseDefaultCredentials = true, PreAuthenticate = true };
-        _http = new HttpClient(handler) { BaseAddress = new Uri(settings.ApiBaseUrl), Timeout = TimeSpan.FromMinutes(5) };
+        // The sign-in cookie returned by /api/auth/login is kept in this container for all later calls.
+        var handler = new HttpClientHandler { UseCookies = true, CookieContainer = new CookieContainer() };
+        _http = new HttpClient(new LicenseAwareHandler { InnerHandler = handler })
+        {
+            BaseAddress = new Uri(settings.ApiBaseUrl), Timeout = TimeSpan.FromMinutes(5),
+        };
+    }
+
+    public CurrentUserDto? User { get; private set; }
+
+    public bool Can(string permission) =>
+        User is { } u && (u.Permissions.Contains(permission) || u.Permissions.Contains("Admin"));
+
+    public async Task<string?> LoginAsync(string userName, string password)
+    {
+        using var resp = await _http.PostAsJsonAsync("api/auth/login", new LoginRequest(userName, password), Json);
+        if (resp.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            return body.Contains("LockedOut") ? "Too many failed attempts. Try again in 15 minutes."
+                 : body.Contains("Inactive") ? "This account is disabled." : "Wrong user name or password.";
+        }
+        resp.EnsureSuccessStatusCode();
+        User = await resp.Content.ReadFromJsonAsync<CurrentUserDto>(Json);
+        return null;
     }
 
     public async Task<DashboardDto> GetDashboardAsync() => (await _http.GetFromJsonAsync<DashboardDto>("api/dashboard", Json))!;
@@ -78,3 +101,20 @@ public sealed class ApiClient
 }
 
 public sealed record ReportListItem(string Code, string Title, string? Subtitle);
+
+/// <summary>Turns "402 license required" and "403 no permission" into readable messages.</summary>
+public sealed class LicenseAwareHandler : DelegatingHandler
+{
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        var resp = await base.SendAsync(request, ct);
+        if (resp.StatusCode == HttpStatusCode.PaymentRequired)
+            throw new InvalidOperationException("DSI WorkForce is not activated or the license has expired. " +
+                "An administrator must enter a license key on the web (License page). Contact support@helao2.com.");
+        if (resp.StatusCode == HttpStatusCode.Forbidden)
+            throw new InvalidOperationException("Your account does not have permission for this. Ask an administrator.");
+        if (resp.StatusCode == HttpStatusCode.Unauthorized && !request.RequestUri!.AbsolutePath.EndsWith("/api/auth/login"))
+            throw new InvalidOperationException("Your session has ended. Restart the application and sign in again.");
+        return resp;
+    }
+}

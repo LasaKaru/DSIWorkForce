@@ -1,5 +1,5 @@
 @page "/review/{Id:long}"
-@attribute [Authorize(Policy = Policies.Reviewer)]
+@attribute [Authorize(Policy = Permissions.Review)]
 @inject WorksheetRepository Worksheets
 @inject NavigationManager Nav
 @inject AuthenticationStateProvider Auth

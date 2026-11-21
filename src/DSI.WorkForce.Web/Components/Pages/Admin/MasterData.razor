@@ -1,0 +1,175 @@
+@page "/admin/master-data"
+@attribute [Authorize(Policy = Permissions.MasterData)]
+@using DSI.WorkForce.Core.Security
+@inject MasterDataRepository Master
+
+<PageTitle>Master data - DSI WorkForce</PageTitle>
+<div class="page-head">
+    <div>
+        <h1>Master data</h1>
+        <p class="muted">Used to check and auto-correct what the OCR reads. Inactive records stay in history but are no longer matched.</p>
+    </div>
+    <button class="btn primary" @onclick="New"><Icon Name="plus" /> Add @Singular</button>
+</div>
+
+<div class="tabs">
+    @foreach (var t in new[] { "Employees", "Items", "Presses", "Shifts" })
+    {
+        <button class="tab @(t == _tab ? "active" : "")" @onclick="() => Switch(t)">@t</button>
+    }
+    @if (_tab != "Shifts")
+    {
+        <input class="search" placeholder="Search…" @bind="_search" @bind:event="oninput" @onkeyup="Load" />
+    }
+    <label class="check small"><input type="checkbox" @bind="_showInactive" /> Show inactive</label>
+</div>
+
+<div class="split @(_editing ? "with-editor" : "")">
+    <div class="card">
+        <table class="grid">
+            @switch (_tab)
+            {
+                case "Employees":
+                    <thead><tr><th>EPF No</th><th>Name</th><th>Section</th><th>Status</th></tr></thead>
+                    <tbody>@foreach (var r in _employees.Where(Show)) {
+                        <tr class="clickable @(r.IsActive ? "" : "inactive")" @onclick="() => { _emp = Copy(r); _isNew = false; _editing = true; _msg = null; }">
+                            <td><b>@r.EpfNo</b></td><td>@r.Name</td><td>@r.Section</td><td><Status Active="r.IsActive" /></td></tr> }</tbody>
+                    break;
+                case "Items":
+                    <thead><tr><th>Item code</th><th>Description</th><th>Category</th><th class="num">Std rate / hour</th><th>Status</th></tr></thead>
+                    <tbody>@foreach (var r in _items.Where(Show)) {
+                        <tr class="clickable @(r.IsActive ? "" : "inactive")" @onclick="() => { _item = Copy(r); _isNew = false; _editing = true; _msg = null; }">
+                            <td><b>@r.ItemCode</b></td><td>@r.Description</td><td>@r.Category</td><td class="num">@r.StandardRatePerHour?.ToString("0.##")</td><td><Status Active="r.IsActive" /></td></tr> }</tbody>
+                    break;
+                case "Presses":
+                    <thead><tr><th>Press / resource</th><th>Name</th><th>Section</th><th class="num">Units per tick</th><th>Status</th></tr></thead>
+                    <tbody>@foreach (var r in _machines.Where(Show)) {
+                        <tr class="clickable @(r.IsActive ? "" : "inactive")" @onclick="() => { _mac = Copy(r); _isNew = false; _editing = true; _msg = null; }">
+                            <td><b>@r.ResourceNo</b></td><td>@r.Name</td><td>@r.Section</td><td class="num">@r.UnitsPerTick?.ToString("0.##")</td><td><Status Active="r.IsActive" /></td></tr> }</tbody>
+                    break;
+                default:
+                    <thead><tr><th>Shift (as written)</th><th>Start</th><th>End</th><th class="num">Hours</th><th>Status</th></tr></thead>
+                    <tbody>@foreach (var r in _shifts.Where(Show)) {
+                        <tr class="clickable @(r.IsActive ? "" : "inactive")" @onclick="() => { _shift = Copy(r); _isNew = false; _editing = true; _msg = null; }">
+                            <td><b>@r.ShiftCode</b></td><td>@r.StartTime.ToString(@"hh\:mm")</td><td>@r.EndTime.ToString(@"hh\:mm")</td><td class="num">@r.Hours.ToString("0.#")</td><td><Status Active="r.IsActive" /></td></tr> }</tbody>
+                    break;
+            }
+        </table>
+        @if (Count == 0) { <p class="muted center">No records.</p> }
+    </div>
+
+    @if (_editing)
+    {
+        <div class="card editor">
+            <div class="editor-head">
+                <h2>@(_isNew ? $"New {Singular}" : $"Edit {Singular}")</h2>
+                <button class="icon-btn" @onclick="() => _editing = false"><Icon Name="x" /></button>
+            </div>
+            <div class="form">
+                @switch (_tab)
+                {
+                    case "Employees":
+                        <label>EPF No<input @bind="_emp.EpfNo" disabled="@(!_isNew)" /></label>
+                        <label>Name<input @bind="_emp.Name" /></label>
+                        <label>Section<input @bind="_emp.Section" /></label>
+                        <label class="check"><input type="checkbox" @bind="_emp.IsActive" /> Active</label>
+                        break;
+                    case "Items":
+                        <label>Item code<input @bind="_item.ItemCode" disabled="@(!_isNew)" /></label>
+                        <label>Description (as in the ERP)<input @bind="_item.Description" placeholder="29 2.10 SRI 94 Full Black" /></label>
+                        <label>Category<input @bind="_item.Category" /></label>
+                        <label>Standard rate per hour<input type="number" step="0.01" @bind="_item.StandardRatePerHour" /></label>
+                        <label class="check"><input type="checkbox" @bind="_item.IsActive" /> Active</label>
+                        break;
+                    case "Presses":
+                        <label>Press / resource no<input @bind="_mac.ResourceNo" disabled="@(!_isNew)" placeholder="P 24" /></label>
+                        <label>Name<input @bind="_mac.Name" /></label>
+                        <label>Section<input @bind="_mac.Section" /></label>
+                        <label>Units per tick (only for tick-based forms)<input type="number" step="0.5" @bind="_mac.UnitsPerTick" /></label>
+                        <label class="check"><input type="checkbox" @bind="_mac.IsActive" /> Active</label>
+                        break;
+                    default:
+                        <label>Shift code (exactly as written on the sheet)<input @bind="_shift.ShiftCode" disabled="@(!_isNew)" placeholder="2-10" /></label>
+                        <label>Start time<input type="time" @bind="ShiftStart" /></label>
+                        <label>End time<input type="time" @bind="ShiftEnd" /></label>
+                        <label>Hours<input type="number" step="0.5" @bind="_shift.Hours" /></label>
+                        <label class="check"><input type="checkbox" @bind="_shift.IsActive" /> Active</label>
+                        break;
+                }
+            </div>
+            @if (_msg is not null) { <div class="alert @(_ok ? "success" : "error")">@_msg</div> }
+            <div class="actions-row">
+                <button class="btn primary" @onclick="Save">Save</button>
+                <button class="btn" @onclick="() => _editing = false">Cancel</button>
+            </div>
+            <p class="muted small">The Worker picks up master-data changes within 5 minutes.</p>
+        </div>
+    }
+</div>
+
+@code {
+    private string _tab = "Employees";
+    private string? _search, _msg;
+    private bool _showInactive = true, _editing, _isNew, _ok;
+    private List<EmployeeRow> _employees = new();
+    private List<ItemRow> _items = new();
+    private List<MachineRow> _machines = new();
+    private List<ShiftRow> _shifts = new();
+    private EmployeeRow _emp = new();
+    private ItemRow _item = new();
+    private MachineRow _mac = new();
+    private ShiftRow _shift = new();
+
+    private string Singular => _tab switch { "Employees" => "employee", "Items" => "item", "Presses" => "press", _ => "shift" };
+    private int Count => _tab switch { "Employees" => _employees.Count, "Items" => _items.Count, "Presses" => _machines.Count, _ => _shifts.Count };
+    private bool Show(EmployeeRow r) => _showInactive || r.IsActive;
+    private bool Show(ItemRow r) => _showInactive || r.IsActive;
+    private bool Show(MachineRow r) => _showInactive || r.IsActive;
+    private bool Show(ShiftRow r) => _showInactive || r.IsActive;
+
+    private TimeOnly ShiftStart { get => TimeOnly.FromTimeSpan(_shift.StartTime); set => _shift.StartTime = value.ToTimeSpan(); }
+    private TimeOnly ShiftEnd { get => TimeOnly.FromTimeSpan(_shift.EndTime); set => _shift.EndTime = value.ToTimeSpan(); }
+
+    protected override Task OnInitializedAsync() => Load();
+
+    private async Task Switch(string tab) { _tab = tab; _search = null; _editing = false; await Load(); }
+
+    private async Task Load()
+    {
+        switch (_tab)
+        {
+            case "Employees": _employees = (await Master.ListEmployeesAsync(_search)).ToList(); break;
+            case "Items": _items = (await Master.ListItemsAsync(_search)).ToList(); break;
+            case "Presses": _machines = (await Master.ListMachinesAsync(_search)).ToList(); break;
+            default: _shifts = (await Master.ListShiftsAsync()).ToList(); break;
+        }
+    }
+
+    private void New()
+    {
+        _isNew = true; _editing = true; _msg = null;
+        _emp = new(); _item = new(); _mac = new(); _shift = new() { StartTime = TimeSpan.FromHours(6), EndTime = TimeSpan.FromHours(14) };
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            switch (_tab)
+            {
+                case "Employees": await Master.SaveEmployeeAsync(_emp); break;
+                case "Items": await Master.SaveItemAsync(_item); break;
+                case "Presses": await Master.SaveMachineAsync(_mac); break;
+                default: await Master.SaveShiftAsync(_shift); break;
+            }
+            (_ok, _msg, _isNew) = (true, "Saved.", false);
+            await Load();
+        }
+        catch (Exception ex) { (_ok, _msg) = (false, ex.Message); }
+    }
+
+    private static EmployeeRow Copy(EmployeeRow r) => new() { EpfNo = r.EpfNo, Name = r.Name, Section = r.Section, IsActive = r.IsActive };
+    private static ItemRow Copy(ItemRow r) => new() { ItemCode = r.ItemCode, Description = r.Description, Category = r.Category, StandardRatePerHour = r.StandardRatePerHour, IsActive = r.IsActive };
+    private static MachineRow Copy(MachineRow r) => new() { ResourceNo = r.ResourceNo, Name = r.Name, Section = r.Section, UnitsPerTick = r.UnitsPerTick, IsActive = r.IsActive };
+    private static ShiftRow Copy(ShiftRow r) => new() { ShiftCode = r.ShiftCode, StartTime = r.StartTime, EndTime = r.EndTime, Hours = r.Hours, IsActive = r.IsActive };
+}

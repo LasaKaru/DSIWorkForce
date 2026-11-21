@@ -1,0 +1,11 @@
+<footer class="app-footer">
+    <span>© 2026 <b>Helao2 (Pvt) Ltd</b>. All rights reserved.</span>
+    <span class="sep">·</span>
+    <a href="mailto:@DSI.WorkForce.Data.LicenseService.SupportEmail">@DSI.WorkForce.Data.LicenseService.SupportEmail</a>
+    @if (ChildContent is not null) { <span class="sep">·</span> @ChildContent }
+    <img src="img/helao2-logo.png" alt="Helao2" class="footer-logo" />
+</footer>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

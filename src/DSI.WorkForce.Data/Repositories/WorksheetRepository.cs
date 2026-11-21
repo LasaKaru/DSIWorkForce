@@ -323,6 +323,39 @@ public sealed class WorksheetRepository(IDbConnectionFactory db, TemplateReposit
         "INSERT dsi.WorksheetValue (WorksheetId, FieldId, RowIndex, RawText, ValueText, ValueNumber, ValueDate, ValueBool, Confidence, Source, IsCorrected) VALUES " +
         string.Join(",", Enumerable.Range(0, rows).Select(i => $"(@w,@f{i},@r{i},@raw{i},@t{i},@n{i},@d{i},@b{i},@c{i},@s{i},0)"));
 
+    public sealed record DailyCount(DateTime Day, int Sheets, int AutoApproved, int Verified, int NeedsReview);
+
+    /// <summary>Sheets scanned per day (dashboard chart).</summary>
+    public async Task<IReadOnlyList<DailyCount>> GetDailyCountsAsync(int days, CancellationToken ct = default)
+    {
+        await using var conn = await db.OpenAsync(ct);
+        var rows = (await conn.QueryAsync<DailyCount>(new CommandDefinition("""
+            SELECT CAST(CreatedAt AS DATE) AS Day, COUNT(*) AS Sheets,
+                   SUM(CASE WHEN Status = N'AutoApproved' THEN 1 ELSE 0 END) AS AutoApproved,
+                   SUM(CASE WHEN Status = N'Verified' THEN 1 ELSE 0 END) AS Verified,
+                   SUM(CASE WHEN Status = N'NeedsReview' THEN 1 ELSE 0 END) AS NeedsReview
+            FROM dsi.Worksheet
+            WHERE CreatedAt >= DATEADD(DAY, -@days, CAST(SYSUTCDATETIME() AS DATE))
+            GROUP BY CAST(CreatedAt AS DATE)
+            """, new { days }, cancellationToken: ct))).ToDictionary(r => r.Day.Date);
+        var today = DateTime.UtcNow.Date;
+        return Enumerable.Range(0, days).Select(i => today.AddDays(i - days + 1))
+            .Select(d => rows.TryGetValue(d, out var r) ? r : new DailyCount(d, 0, 0, 0, 0)).ToList();
+    }
+
+    public async Task<IReadOnlyList<WorksheetSummaryDto>> GetRecentAsync(int top, CancellationToken ct = default)
+    {
+        await using var conn = await db.OpenAsync(ct);
+        var rows = await conn.QueryAsync<SummaryRow>(new CommandDefinition("""
+            SELECT TOP (@top) w.WorksheetId, w.TemplateCode, w.WorkDate, w.Shift, w.ResourceNo, w.EpfNo, w.ItemCode, w.Status, w.MinConfidence,
+                   (SELECT COUNT(*) FROM dsi.ValidationIssue i WHERE i.WorksheetId = w.WorksheetId AND i.IsResolved = 0) AS OpenIssues,
+                   sf.FileName, w.PageNo, w.CreatedAt
+            FROM dsi.Worksheet w JOIN dsi.ScanFile sf ON sf.ScanFileId = w.ScanFileId
+            ORDER BY w.CreatedAt DESC
+            """, new { top }, cancellationToken: ct));
+        return rows.Select(r => r.ToDto()).ToList();
+    }
+
     private static string? Trim(string? s) => s is null ? null : s.Length > 400 ? s[..400] : s;
 
     // Dapper row types (DATE columns arrive as DateTime).

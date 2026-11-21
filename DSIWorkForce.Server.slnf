@@ -8,7 +8,8 @@
       "src\\DSI.WorkForce.Worker\\DSI.WorkForce.Worker.csproj",
       "src\\DSI.WorkForce.DbMigrator\\DSI.WorkForce.DbMigrator.csproj",
       "src\\DSI.WorkForce.Web\\DSI.WorkForce.Web.csproj",
-      "tests\\DSI.WorkForce.Tests\\DSI.WorkForce.Tests.csproj"
+      "tests\\DSI.WorkForce.Tests\\DSI.WorkForce.Tests.csproj",
+      "tools\\DSI.WorkForce.LicenseGenerator\\DSI.WorkForce.LicenseGenerator.csproj"
     ]
   }
 }

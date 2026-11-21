@@ -22,3 +22,8 @@ samples/
 ## Local secrets
 appsettings.*.local.json
 secrets.json
+
+## Licensing: production signing key and issued license copies must never be committed
+helao2-license-private.pem
+*.private.pem
+issued-licenses/

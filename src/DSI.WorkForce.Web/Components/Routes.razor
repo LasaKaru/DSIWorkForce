@@ -1,8 +1,24 @@
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
-            <NotAuthorized><p class="error">You do not have access to this page. Ask IT to add you to the WorkForce reviewer group.</p></NotAuthorized>
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated != true)
+                {
+                    <RedirectToLogin />
+                }
+                else
+                {
+                    <div class="empty-state">
+                        <Icon Name="lock" Size="40" />
+                        <h2>No access</h2>
+                        <p>Your account does not have permission for this page. Ask an administrator to enable it on <b>Admin › Users</b>.</p>
+                    </div>
+                }
+            </NotAuthorized>
         </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
+    <NotFound>
+        <LayoutView Layout="typeof(Layout.MainLayout)"><div class="empty-state"><h2>Page not found</h2></div></LayoutView>
+    </NotFound>
 </Router>

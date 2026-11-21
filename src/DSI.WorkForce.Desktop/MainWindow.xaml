@@ -3,10 +3,16 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="DSI WorkForce" Height="860" Width="1400" WindowStartupLocation="CenterScreen"
         Loaded="OnLoaded">
+    <DockPanel>
+    <StatusBar DockPanel.Dock="Bottom">
+        <StatusBarItem><TextBlock><Run Text="Signed in as " /><Run Text="{Binding SignedInAs, Mode=OneWay}" FontWeight="SemiBold" /></TextBlock></StatusBarItem>
+        <StatusBarItem HorizontalAlignment="Right"><TextBlock Foreground="#64707D" Text="© 2026 Helao2 (Pvt) Ltd · support@helao2.com" /></StatusBarItem>
+    </StatusBar>
     <TabControl Margin="6">
 
         <!-- ===================== Scan station ===================== -->
-        <TabItem Header="Scan station" DataContext="{Binding Scan}">
+        <TabItem Header="Scan station" DataContext="{Binding Scan}"
+                 Visibility="{Binding DataContext.CanScan, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}">
             <DockPanel Margin="10">
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
                     <Button Content="Add scanned files…" Command="{Binding AddFilesCommand}" />
@@ -36,7 +42,8 @@
         </TabItem>
 
         <!-- ===================== Review ===================== -->
-        <TabItem Header="Review" DataContext="{Binding Review}">
+        <TabItem Header="Review" DataContext="{Binding Review}"
+                 Visibility="{Binding DataContext.CanReview, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}">
             <Grid Margin="6">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="330" />
@@ -113,7 +120,8 @@
         </TabItem>
 
         <!-- ===================== Reports (Excel-like) ===================== -->
-        <TabItem Header="Reports" DataContext="{Binding Reports}">
+        <TabItem Header="Reports" DataContext="{Binding Reports}"
+                 Visibility="{Binding DataContext.CanReports, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}">
             <DockPanel Margin="10">
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
                     <ComboBox ItemsSource="{Binding Reports}" SelectedItem="{Binding SelectedReport}" DisplayMemberPath="Title" Width="220" />
@@ -138,4 +146,5 @@
             </DockPanel>
         </TabItem>
     </TabControl>
+    </DockPanel>
 </Window>

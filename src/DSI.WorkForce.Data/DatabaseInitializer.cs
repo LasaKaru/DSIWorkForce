@@ -17,6 +17,8 @@ public sealed class DatabaseInitializer(DatabaseOptions options, string template
 {
     // Web and Worker are usually started together from Visual Studio: only one may create/upgrade at a time.
     private const string MutexName = "DSIWorkForce-DatabaseInitializer";
+    public const string DefaultAdminUser = "admin";
+    public const string DefaultAdminPassword = "Admin@123";
 
     /// <param name="forceReports">Overwrite report columns from templates/reports/*.json.</param>
     /// <param name="alwaysRebuildViews">Rebuild report views even if nothing changed (the DbMigrator does this).</param>
@@ -97,6 +99,10 @@ public sealed class DatabaseInitializer(DatabaseOptions options, string template
             await conn.ExecuteAsync(new CommandDefinition(sql, cancellationToken: ct));
             log("Sample master data loaded (presses, items, test employee 1234).");
         }
+
+        // 6. First start: create the administrator account (password must be changed at first sign-in).
+        if (await new UserRepository(db).EnsureDefaultAdminAsync(DefaultAdminUser, DefaultAdminPassword, ct))
+            log($"Created administrator '{DefaultAdminUser}' with password '{DefaultAdminPassword}' - you must change it at first sign-in.");
 
         log("Database is up to date.");
     }

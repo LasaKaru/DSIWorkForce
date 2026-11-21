@@ -81,5 +81,5 @@ If volume grows 50×, the `ScanQueueRepository` is the single place to swap for 
 
 ## Why Blazor Server for the web app?
 It's pure .NET/C# (no separate JS front-end to maintain), works on any PC/tablet browser on the factory network,
-and uses Windows (AD) single sign-on. The JSON API (`/api/...`) serves the WPF client and other systems.
+and has its own sign-in with per-user permissions and license enforcement. The JSON API (`/api/...`) serves the WPF client and other systems.
 The review screen crops image snippets with CSS only, so the server does no image work per request.

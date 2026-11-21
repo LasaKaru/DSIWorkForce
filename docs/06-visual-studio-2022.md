@@ -152,8 +152,17 @@ You need **two programs running at the same time**: the **Worker** (reads the sc
    Watching C:\DSIWorkForce\hot\PC-011-A for template PC-011-A
    Extraction worker ... started
    ```
-3. The browser opens the **Dashboard** at `https://localhost:7082` (in Development there is no login).
-   *Worker heartbeat* shows a time, which means Web and Worker both reach the database.
+3. The browser opens `https://localhost:7082`. Because the product is not activated yet, you land on the
+   **activation page**:
+   * click **Sign in as administrator** → user **`admin`**, password **`Admin@123`** → choose a new password;
+   * create a test key (Developer PowerShell, repository folder):
+     ```powershell
+     dotnet run --project tools/DSI.WorkForce.LicenseGenerator -- generate --customer "Test" --type Trial --days 30
+     ```
+   * paste the `HLO2-…` line into the key box → **Validate & activate** → **Continue to the dashboard**.
+   *Worker heartbeat* on the dashboard shows a time, which means Web and Worker both reach the database.
+   (Test keys come from the development key and work only in Debug builds. See
+   [07-users-permissions-licensing.md](07-users-permissions-licensing.md) for real customer keys.)
 4. If you started it, the **WPF** window opens. It talks to `https://localhost:7082/` (`desktopsettings.json`).
 5. Stop everything with **Shift+F5**.
 
@@ -199,7 +208,7 @@ To calibrate another file: Worker project → **Properties → Debug → Open de
 
 ## 9. Run the tests
 
-**Test → Test Explorer → Run All Tests** (53 tests).
+**Test → Test Explorer → Run All Tests** (72 tests).
 
 To also run the real-scan integration test, set an environment variable, then restart Visual Studio:
 
@@ -278,6 +287,6 @@ To use Azure or Ollama for *everything*, set `"Recognizer"` instead of `"Escalat
 Right-click a project → **Publish → Folder**:
 
 * **DSI.WorkForce.Worker** → install as a Windows Service ([05-deployment.md](05-deployment.md), [02-step-by-step-guide.md](02-step-by-step-guide.md) step 6)
-* **DSI.WorkForce.Web** → IIS with Windows Authentication (step 7 of the guide)
+* **DSI.WorkForce.Web** → IIS with HTTPS (step 7 of the guide); activate with a production license key
 * **DSI.WorkForce.DbMigrator** → run once per release against the production database
 * **DSI.WorkForce.Desktop** → copy the folder to scan-station PCs (set `ApiBaseUrl` to the server URL)

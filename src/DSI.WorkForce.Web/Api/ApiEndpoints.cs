@@ -1,5 +1,7 @@
 using DSI.WorkForce.Core.Contracts;
+using DSI.WorkForce.Core.Security;
 using DSI.WorkForce.Data.Repositories;
+using DSI.WorkForce.Web.Security;
 using DSI.WorkForce.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,19 +12,24 @@ public static class ApiEndpoints
 {
     public static void MapDsiApi(this IEndpointRouteBuilder app)
     {
-        var api = app.MapGroup("/api").RequireAuthorization(Policies.Reviewer);
+        var api = app.MapGroup("/api").RequireAuthorization();
 
-        api.MapGet("/me", (HttpContext ctx) => Results.Ok(new { name = CurrentUser.Name(ctx.User) }));
+        api.MapGet("/me", (HttpContext ctx) => Results.Ok(new CurrentUserDto(ctx.User.UserId() ?? 0, ctx.User.Identity!.Name!,
+            ctx.User.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value ?? "",
+            ctx.User.FindAll(Permissions.ClaimType).Select(c => c.Value).ToList(), false)));
 
         api.MapGet("/dashboard", (WorksheetRepository repo, CancellationToken ct) => repo.GetDashboardAsync(ct));
 
-        api.MapGet("/worksheets", (WorksheetRepository repo, string? status, DateOnly? from, DateOnly? to, string? resourceNo, string? epfNo, int? top, CancellationToken ct) =>
+        var review = api.MapGroup("").RequireAuthorization(Permissions.Review);
+        var reports = api.MapGroup("").RequireAuthorization(Permissions.Reports);
+
+        review.MapGet("/worksheets", (WorksheetRepository repo, string? status, DateOnly? from, DateOnly? to, string? resourceNo, string? epfNo, int? top, CancellationToken ct) =>
             repo.SearchAsync(string.IsNullOrWhiteSpace(status) ? null : status, from, to, resourceNo, epfNo, Math.Clamp(top ?? 200, 1, 2000), ct));
 
-        api.MapGet("/worksheets/{id:long}", async (long id, WorksheetRepository repo, CancellationToken ct) =>
+        review.MapGet("/worksheets/{id:long}", async (long id, WorksheetRepository repo, CancellationToken ct) =>
             await repo.GetDetailAsync(id, ct) is { } d ? Results.Ok(d.Detail) : Results.NotFound());
 
-        api.MapGet("/worksheets/{id:long}/image", async (long id, WorksheetRepository repo, CancellationToken ct) =>
+        review.MapGet("/worksheets/{id:long}/image", async (long id, WorksheetRepository repo, CancellationToken ct) =>
         {
             var d = await repo.GetDetailAsync(id, ct);
             return d?.ImagePath is { } path && File.Exists(path)
@@ -30,7 +37,7 @@ public static class ApiEndpoints
                 : Results.NotFound();
         });
 
-        api.MapPut("/worksheets/{id:long}", async (long id, SaveCorrectionsRequest req, WorksheetRepository repo, HttpContext ctx, CancellationToken ct) =>
+        review.MapPut("/worksheets/{id:long}", async (long id, SaveCorrectionsRequest req, WorksheetRepository repo, HttpContext ctx, CancellationToken ct) =>
         {
             try
             {
@@ -41,28 +48,28 @@ public static class ApiEndpoints
             catch (KeyNotFoundException) { return Results.NotFound(); }
         });
 
-        api.MapPost("/worksheets/{id:long}/reject", async (long id, [FromBody] RejectRequest req, WorksheetRepository repo, HttpContext ctx, CancellationToken ct) =>
+        review.MapPost("/worksheets/{id:long}/reject", async (long id, [FromBody] RejectRequest req, WorksheetRepository repo, HttpContext ctx, CancellationToken ct) =>
         {
             await repo.RejectAsync(id, CurrentUser.Name(ctx.User), req.Reason, ct);
             return Results.NoContent();
         });
 
-        api.MapPost("/worksheets/{id:long}/reprocess", async (long id, WorksheetRepository repo, CancellationToken ct) =>
+        review.MapPost("/worksheets/{id:long}/reprocess", async (long id, WorksheetRepository repo, CancellationToken ct) =>
         {
             await repo.ReprocessAsync(id, ct);
             return Results.Accepted();
         });
 
-        api.MapGet("/reports", async (ReportRepository repo, CancellationToken ct) =>
+        reports.MapGet("/reports", async (ReportRepository repo, CancellationToken ct) =>
             (await repo.GetAllAsync(ct)).Select(r => new { r.Code, r.Title, r.Subtitle }));
 
-        api.MapGet("/reports/{code}", async (string code, DateOnly from, DateOnly to, string? shift, string? resourceNo, string? epfNo, ReportRepository repo, CancellationToken ct) =>
+        reports.MapGet("/reports/{code}", async (string code, DateOnly from, DateOnly to, string? shift, string? resourceNo, string? epfNo, ReportRepository repo, CancellationToken ct) =>
         {
             try { return Results.Ok(await repo.QueryAsync(new ReportQuery(code, from, to, shift, resourceNo, epfNo), ct: ct)); }
             catch (KeyNotFoundException) { return Results.NotFound(); }
         });
 
-        api.MapGet("/reports/{code}/export", async (string code, DateOnly from, DateOnly to, string? shift, string? resourceNo, string? epfNo, ReportRepository repo, CancellationToken ct) =>
+        reports.MapGet("/reports/{code}/export", async (string code, DateOnly from, DateOnly to, string? shift, string? resourceNo, string? epfNo, ReportRepository repo, CancellationToken ct) =>
         {
             var def = await repo.GetAsync(code, ct);
             if (def is null) return Results.NotFound();
@@ -84,10 +91,10 @@ public static class ApiEndpoints
                 results.Add(await uploads.SaveAsync(template, file.FileName, s, CurrentUser.Name(ctx.User), ct));
             }
             return Results.Ok(results);
-        }).DisableAntiforgery();
+        }).DisableAntiforgery().RequireAuthorization(Permissions.Scan);
 
         api.MapPost("/scanfiles/retry-failed", async (ScanQueueRepository queue, CancellationToken ct) =>
-            Results.Ok(new { requeued = await queue.RetryFailedAsync(null, ct) })).RequireAuthorization(Policies.Admin);
+            Results.Ok(new { requeued = await queue.RetryFailedAsync(null, ct) })).RequireAuthorization(Permissions.Admin);
     }
 
     public sealed record RejectRequest(string Reason);

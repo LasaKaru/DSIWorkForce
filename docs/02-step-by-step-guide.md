@@ -76,15 +76,16 @@ sc.exe start DSIWorkForceWorker
 ```
 Logs: `C:\apps\dsi-worker\logs\worker-YYYYMMDD.log`. The dashboard shows the worker heartbeat.
 
-## Step 7: Deploy the web app (IIS, Windows login)
+## Step 7: Deploy the web app (IIS) and activate
 
 1. Install the **ASP.NET Core 8 Hosting Bundle** on the server.
 2. `dotnet publish src/DSI.WorkForce.Web -c Release -o C:\apps\dsi-web`
-3. IIS site → app pool *No Managed Code*, identity = service account. Enable **Windows Authentication** and disable
-   Anonymous on the site.
-4. `appsettings.json`: connection string, `Upload:HotFolders`, and optionally AD groups in
-   `Auth:ReviewerRoles` / `Auth:AdminRoles`.
-5. Browse to `https://dsi-workforce/` → Dashboard.
+3. IIS site → app pool *No Managed Code*, identity = service account, **HTTPS binding** (sign-in cookies need HTTPS).
+   Leave *Anonymous Authentication* enabled (the app has its own sign-in).
+4. `appsettings.json`: connection string and `Upload:HotFolders`.
+5. Browse to `https://dsi-workforce/` → you are sent to the **activation page**. Sign in as `admin` / `Admin@123`,
+   choose a new password, paste the license key from Helao2 and click **Validate & activate**.
+6. Create user accounts on **Users & permissions** (see [07-users-permissions-licensing.md](07-users-permissions-licensing.md)).
 
 ## Step 8: Pilot (1–2 weeks, one press line)
 

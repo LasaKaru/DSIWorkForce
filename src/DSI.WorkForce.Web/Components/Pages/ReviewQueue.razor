@@ -1,5 +1,5 @@
 @page "/review"
-@attribute [Authorize(Policy = Policies.Reviewer)]
+@attribute [Authorize(Policy = Permissions.Review)]
 @inject WorksheetRepository Worksheets
 
 <PageTitle>Review - DSI WorkForce</PageTitle>
@@ -26,7 +26,7 @@
 else if (_rows.Count == 0) { <p class="muted">Nothing here. 🎉</p> }
 else
 {
-    <table class="grid">
+    <div class="card"><table class="grid">
         <thead><tr><th>Sheet</th><th>Status</th><th>Date</th><th>Shift</th><th>Press</th><th>EPF</th><th>Item</th><th>Issues</th><th>Min conf.</th><th>File / page</th><th>Scanned</th></tr></thead>
         <tbody>
             @foreach (var r in _rows)
@@ -39,7 +39,7 @@ else
                 </tr>
             }
         </tbody>
-    </table>
+    </table></div>
 }
 
 @code {

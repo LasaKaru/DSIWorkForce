@@ -1,5 +1,5 @@
 @page "/reports"
-@attribute [Authorize(Policy = Policies.Reviewer)]
+@attribute [Authorize(Policy = Permissions.Reports)]
 @inject ReportRepository ReportRepo
 
 <PageTitle>Reports - DSI WorkForce</PageTitle>

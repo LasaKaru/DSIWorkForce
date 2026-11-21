@@ -1,5 +1,5 @@
 @page "/admin/reports"
-@attribute [Authorize(Policy = Policies.Admin)]
+@attribute [Authorize(Policy = Permissions.ReportDesign)]
 @inject ReportRepository Reports
 @inject TemplateRepository Templates
 

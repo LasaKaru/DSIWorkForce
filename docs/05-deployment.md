@@ -7,7 +7,7 @@
                               │
                     APP01 (Windows Server, 4–8 vCPU, 16 GB)
                     ├─ DSIWorkForceWorker (Windows Service)
-                    └─ IIS: DSI.WorkForce.Web (HTTPS, Windows auth)
+                    └─ IIS: DSI.WorkForce.Web (HTTPS, app sign-in)
                               │
                     SQL01 (existing SQL Server 2016 SP1+; 2019/2022 recommended)
 [Optional] GPU01 with Ollama (if using the local VLM recognizer)
@@ -38,8 +38,8 @@ Worker `appsettings.json`:
 | `Extraction:Local:Model / Variants / CpuThreads` | `PPOCRv5` (default) or `EnglishV4`; image variants per box 1–3 (default 3); CPU threads per OCR engine (default 2). |
 | `Extraction:Azure:*`, `Extraction:Ollama:*` | Recognizer settings (put keys in environment variables, not in the file). |
 
-Web `appsettings.json`: `Database`, `Auth:Mode` (`Windows`), `Auth:ReviewerRoles`, `Auth:AdminRoles`,
-`Upload:HotFolders`.
+Web `appsettings.json`: `Database`, `Upload:HotFolders`. Users and permissions are managed in the app
+(*Users & permissions*), the license on the *License* page.
 
 ## Monitoring
 
@@ -60,7 +60,10 @@ Files that arrive meanwhile wait safely in the hot folder.
 
 ## Security notes
 
-* Windows authentication; optional AD-group restriction for reviewers and admins.
+* Application sign-in with per-user permissions (salted PBKDF2 password hashes, lockout after 5 failures,
+  sessions revoked within a minute on deactivation / permission change). Serve the site over HTTPS only.
+* Licensed product: signed (ECDSA) license keys, checked every minute; without a valid key everything is locked
+  (see [07-users-permissions-licensing.md](07-users-permissions-licensing.md)). Keep `helao2-license-private.pem` secret.
 * The web app and worker use a least-privilege DB role (`dsi_app`); report readers get `dsi_report_reader`
   (read-only on `rpt`).
 * Report expressions are validated against a whitelist; identifiers are bracket-quoted; all values are parameters.
