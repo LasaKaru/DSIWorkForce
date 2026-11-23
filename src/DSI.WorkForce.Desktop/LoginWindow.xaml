@@ -11,6 +11,8 @@
         <TextBlock Text="Password" Foreground="#64707D" />
         <PasswordBox x:Name="PasswordBox" Padding="6" Margin="0,4,0,12" />
         <TextBlock x:Name="ErrorText" Foreground="#C0362C" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed" />
+        <TextBlock x:Name="CertWarning" Foreground="#B26B00" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8" Visibility="Collapsed"
+                   Text="⚠ HTTPS certificate check is switched off (AllowUntrustedCertificate in desktopsettings.json). Use only on trusted networks." />
         <Button x:Name="SignInButton" Content="Sign in" IsDefault="True" Padding="8" Background="#1F6F43" Foreground="White"
                 BorderThickness="0" Click="OnSignIn" />
         <TextBlock Margin="0,18,0,0" FontSize="11" Foreground="#64707D" TextAlignment="Center">

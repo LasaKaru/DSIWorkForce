@@ -46,4 +46,10 @@ public sealed record ReportResultDto(
     IReadOnlyList<ReportColumnInfoDto> Columns,
     IReadOnlyList<object?[]> Rows);
 
-public sealed record UploadResultDto(string FileName, bool Accepted, string Message);
+/// <param name="StoredName">Name in the hot folder; used to follow the file through the queue (see ScanStatusDto).</param>
+/// <param name="Duplicate">The exact same file was imported before.</param>
+public sealed record UploadResultDto(string FileName, bool Accepted, string Message, string? StoredName = null, bool Duplicate = false);
+
+/// <summary>Where an uploaded file is: Pending (queued), Processing, Completed or Failed; plus the sheets it produced.</summary>
+public sealed record ScanStatusDto(string StoredName, long ScanFileId, string Status, string? LastError, int Pages, int NeedsReview,
+    long? FirstWorksheetId);

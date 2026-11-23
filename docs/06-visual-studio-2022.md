@@ -277,7 +277,8 @@ To use Azure or Ollama for *everything*, set `"Recognizer"` instead of `"Escalat
 | Sheet status *NeedsReview* with *ALIGNMENT_FAILED* | Page is not PC-011-A, or very skewed/cut off. Rescan; check with *Calibrate*. |
 | `DllNotFoundException: paddle_inference_c` / OCR engine fails to load | Run as 64-bit and install the latest *Microsoft Visual C++ Redistributable (x64)*. As a fallback set `"Recognizer": "None"`. |
 | `DllNotFoundException: OpenCvSharpExtern` / `pdfium` | Run as 64-bit (see step 2). Install the latest *Microsoft Visual C++ Redistributable (x64)*. |
-| WPF: *Server not reachable* | Start the Web project too, and check `ApiBaseUrl` in `desktopsettings.json`. Run `dotnet dev-certs https --trust`. |
+| WPF: *Server not reachable* | Start the Web project too, and check `ApiBaseUrl` in `desktopsettings.json`. |
+| WPF: *The SSL connection could not be established* | The HTTPS development certificate is not trusted on this PC (the browser shows "Not secure" too). Best: `dotnet dev-certs https --trust`, then restart Visual Studio. Bypass: `"AllowUntrustedCertificate": true` in `src/DSI.WorkForce.Desktop/desktopsettings.json` (already on in the development file; the sign-in window then shows a warning). |
 | Browser certificate warning | `dotnet dev-certs https --trust`, then restart the browser. |
 | Port 7082 already used | Change `applicationUrl` in `src/DSI.WorkForce.Web/Properties/launchSettings.json` (and `ApiBaseUrl` for WPF). |
 | Report shows old columns after an update | Run the DbMigrator profile **Re-import report layouts**, or edit them in *Report columns*. |

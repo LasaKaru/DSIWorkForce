@@ -19,6 +19,12 @@ public sealed class ApiClient
     {
         // The sign-in cookie returned by /api/auth/login is kept in this container for all later calls.
         var handler = new HttpClientHandler { UseCookies = true, CookieContainer = new CookieContainer() };
+        var pinned = settings.TrustedCertificateThumbprint?.Replace(" ", "").Replace(":", "");
+        CertificateCheckDisabled = settings.AllowUntrustedCertificate;
+        handler.ServerCertificateCustomValidationCallback = (_, cert, _, errors) =>
+            errors == System.Net.Security.SslPolicyErrors.None                                                    // trusted normally
+            || (!string.IsNullOrEmpty(pinned) && cert is not null && string.Equals(cert.GetCertHashString(), pinned, StringComparison.OrdinalIgnoreCase))
+            || settings.AllowUntrustedCertificate;                                                                // explicit bypass
         _http = new HttpClient(new LicenseAwareHandler { InnerHandler = handler })
         {
             BaseAddress = new Uri(settings.ApiBaseUrl), Timeout = TimeSpan.FromMinutes(5),
@@ -26,6 +32,9 @@ public sealed class ApiClient
     }
 
     public CurrentUserDto? User { get; private set; }
+
+    /// <summary>True when desktopsettings.json switches the HTTPS certificate check off (shown as a warning).</summary>
+    public bool CertificateCheckDisabled { get; }
 
     public bool Can(string permission) =>
         User is { } u && (u.Permissions.Contains(permission) || u.Permissions.Contains("Admin"));

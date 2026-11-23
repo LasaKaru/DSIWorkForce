@@ -10,6 +10,15 @@ public sealed class DesktopSettings
     public string? WatchFolder { get; set; }
     public bool AutoUploadWatchedFolder { get; set; }
 
+    /// <summary>
+    /// Bypass the HTTPS certificate check (development PCs with an untrusted localhost certificate, test servers).
+    /// Leave false in production: use a trusted certificate or pin it with <see cref="TrustedCertificateThumbprint"/>.
+    /// </summary>
+    public bool AllowUntrustedCertificate { get; set; }
+
+    /// <summary>Accept exactly this server certificate (SHA-1 thumbprint, as shown in the certificate's details) even if not trusted.</summary>
+    public string? TrustedCertificateThumbprint { get; set; }
+
     public static DesktopSettings Load()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "desktopsettings.json");

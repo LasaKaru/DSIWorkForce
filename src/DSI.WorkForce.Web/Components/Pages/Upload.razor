@@ -1,42 +1,228 @@
 @page "/upload"
 @attribute [Authorize(Policy = Permissions.Scan)]
+@implements IAsyncDisposable
 @inject UploadService Uploads
+@inject ScanQueueRepository Queue
 @inject AuthenticationStateProvider Auth
 
 <PageTitle>Upload scans - DSI WorkForce</PageTitle>
-<h1>Upload scans</h1>
-<p class="muted">Normally scanners save straight into the network hot folder. Use this page for scans made elsewhere (phone, other office).</p>
-
-<div class="filters">
-    <label>Form
-        <select @bind="_template">@foreach (var t in Uploads.TemplateCodes) { <option>@t</option> }</select>
+<div class="page-head">
+    <div>
+        <h1>Upload scans</h1>
+        <p class="muted">Scanners normally save straight into the network hot folder. Use this page for scans made elsewhere
+            (phone, other office). Up to @MaxFiles files at a time; each is uploaded in turn and then read automatically.</p>
+    </div>
+    <label class="form-inline">Form
+        <select @bind="_template" disabled="@_busy">@foreach (var t in Uploads.TemplateCodes) { <option>@t</option> }</select>
     </label>
-    <InputFile OnChange="OnFiles" multiple accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff" />
 </div>
 
-@if (_busy) { <p>Uploading…</p> }
-<ul class="issues">
-    @foreach (var r in _results) { <li class="@(r.Accepted ? "info" : "error")"><b>@r.FileName</b>: @r.Message</li> }
-</ul>
+<div class="dropzone @(_busy ? "disabled" : "")">
+    <InputFile OnChange="OnFiles" multiple accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff" disabled="@_busy" title="" />
+    <Icon Name="upload" Size="34" />
+    <b>@(_busy ? "Uploading… you can add more files when this batch is finished" : "Drag scanned files here, or click to choose")</b>
+    <span class="muted small">PDF, JPG, PNG or TIFF · up to @MaxFiles files · max @(Uploads.MaxFileBytes / 1024 / 1024) MB each</span>
+</div>
+
+@if (_message is not null) { <div class="alert error"><Icon Name="alert" /> @_message</div> }
+
+@if (_items.Count > 0)
+{
+    <div class="card">
+        <div class="card-head">
+            <h2>@_items.Count(i => i.State is ItemState.Done) of @_items.Count done
+                @if (_items.Any(i => i.State is ItemState.Failed or ItemState.Duplicate)) { <span class="muted small"> · @_items.Count(i => i.State is ItemState.Failed or ItemState.Duplicate) not imported</span> }
+            </h2>
+            <div class="quick">
+                @if (_items.Any(i => i.State is ItemState.Done && i.NeedsReview > 0)) { <a class="btn primary" href="review"><Icon Name="review" /> Review sheets</a> }
+                <button class="btn" @onclick="ClearFinished" disabled="@(_busy || !_items.Any(i => i.IsFinal))">Clear finished</button>
+            </div>
+        </div>
+        <table class="grid upload-list">
+            <thead><tr><th>File</th><th class="num">Size</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var i in _items)
+                {
+                    <tr>
+                        <td class="wrap"><Icon Name="file" Size="16" /> @i.Name</td>
+                        <td class="num muted">@Size(i.Bytes)</td>
+                        <td>
+                            <span class="badge @i.Badge">@i.Label</span>
+                            @if (i.State == ItemState.Uploading)
+                            {
+                                <div class="progress"><div style="width:@(i.Percent)%"></div></div>
+                            }
+                            @if (i.Detail is not null) { <div class="muted small">@i.Detail</div> }
+                        </td>
+                        <td class="nowrap">
+                            @if (i.FirstWorksheetId is { } ws) { <a href="review/@ws">Open sheet →</a> }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
 
 @code {
+    private const int MaxFiles = 20;
+
+    private enum ItemState { Waiting, Uploading, Uploaded, Processing, Done, Duplicate, Failed }
+
+    private sealed class Item
+    {
+        public required string Name { get; init; }
+        public long Bytes { get; init; }
+        public IBrowserFile? File { get; set; }
+        public ItemState State { get; set; } = ItemState.Waiting;
+        public int Percent { get; set; }
+        public string? StoredName { get; set; }
+        public string? Detail { get; set; }
+        public int NeedsReview { get; set; }
+        public long? FirstWorksheetId { get; set; }
+
+        public bool IsFinal => State is ItemState.Done or ItemState.Duplicate or ItemState.Failed;
+
+        public string Label => State switch
+        {
+            ItemState.Waiting => "Waiting",
+            ItemState.Uploading => $"Uploading {Percent}%",
+            ItemState.Uploaded => "Uploaded - queued",
+            ItemState.Processing => "Reading…",
+            ItemState.Done => NeedsReview > 0 ? "Done - needs review" : "Done",
+            ItemState.Duplicate => "Duplicate",
+            _ => "Failed",
+        };
+
+        public string Badge => State switch
+        {
+            ItemState.Done => NeedsReview > 0 ? "needsreview" : "autoapproved",
+            ItemState.Failed => "rejected",
+            ItemState.Duplicate => "",
+            ItemState.Uploading or ItemState.Processing => "verified",
+            _ => "",
+        };
+    }
+
+    private readonly List<Item> _items = new();
     private string _template = "PC-011-A";
+    private string? _message;
     private bool _busy;
-    private List<UploadResultDto> _results = new();
+    private string _user = "";
+    private readonly CancellationTokenSource _cts = new();
+    private Task? _poller;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _user = CurrentUser.Name((await Auth.GetAuthenticationStateAsync()).User);
+        _template = Uploads.TemplateCodes.FirstOrDefault() ?? _template;
+        _poller = PollStatusAsync(_cts.Token);
+    }
 
     private async Task OnFiles(InputFileChangeEventArgs e)
     {
-        _busy = true;
-        var user = CurrentUser.Name((await Auth.GetAuthenticationStateAsync()).User);
-        foreach (var f in e.GetMultipleFiles(200))
+        _message = null;
+        if (e.FileCount > MaxFiles)
         {
-            try
-            {
-                await using var s = f.OpenReadStream(Uploads.MaxFileBytes);
-                _results.Insert(0, await Uploads.SaveAsync(_template, f.Name, s, user, CancellationToken.None));
-            }
-            catch (Exception ex) { _results.Insert(0, new UploadResultDto(f.Name, false, ex.Message)); }
+            _message = $"{e.FileCount} files selected - please choose at most {MaxFiles} at a time.";
+            return;
         }
-        _busy = false;
+
+        var batch = e.GetMultipleFiles(MaxFiles).Select(f => new Item { Name = f.Name, Bytes = f.Size, File = f }).ToList();
+        foreach (var item in batch.Where(i => i.Bytes > Uploads.MaxFileBytes))
+            (item.State, item.Detail, item.File) = (ItemState.Failed, $"Larger than {Uploads.MaxFileBytes / 1024 / 1024} MB.", null);
+        foreach (var item in batch.Where(i => i.File is not null && !UploadService.AllowedExtensions.Contains(Path.GetExtension(i.Name))))
+            (item.State, item.Detail, item.File) = (ItemState.Failed, "Not a PDF or image scan.", null);
+        _items.InsertRange(0, batch);
+
+        // One file at a time: steady load on the server, clear progress for the user.
+        _busy = true;
+        try
+        {
+            foreach (var item in batch.Where(i => i.State == ItemState.Waiting))
+            {
+                item.State = ItemState.Uploading;
+                StateHasChanged();
+                try
+                {
+                    var lastShown = 0;
+                    var progress = new Progress<long>(done =>
+                    {
+                        item.Percent = item.Bytes == 0 ? 100 : (int)(100 * done / item.Bytes);
+                        if (item.Percent - lastShown >= 5) { lastShown = item.Percent; StateHasChanged(); }
+                    });
+                    await using var stream = item.File!.OpenReadStream(Uploads.MaxFileBytes, _cts.Token);
+                    var result = await Uploads.SaveAsync(_template, item.Name, stream, _user, _cts.Token, progress);
+                    if (result.Accepted) (item.State, item.StoredName, item.Detail) = (ItemState.Uploaded, result.StoredName, null);
+                    else (item.State, item.Detail) = (result.Duplicate ? ItemState.Duplicate : ItemState.Failed, result.Message);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    (item.State, item.Detail) = (ItemState.Failed, ex.Message);
+                }
+                finally { item.File = null; }
+                StateHasChanged();
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    /// <summary>Follows uploaded files through the Worker queue every 3 seconds.</summary>
+    private async Task PollStatusAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                // Run on the page's render context so the list is never read while the user changes it.
+                await InvokeAsync(() => RefreshStatusAsync(ct));
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task RefreshStatusAsync(CancellationToken ct)
+    {
+        var open = _items.Where(i => i.State is ItemState.Uploaded or ItemState.Processing && i.StoredName is not null).ToList();
+        if (open.Count == 0) return;
+        try
+        {
+            var status = (await Queue.GetStatusByFileNamesAsync(open.Select(i => i.StoredName!).ToList(), ct))
+                .ToDictionary(s => s.StoredName, StringComparer.OrdinalIgnoreCase);
+            foreach (var i in open)
+            {
+                if (!status.TryGetValue(i.StoredName!, out var s)) continue;   // not picked up by the Worker yet
+                switch (s.Status)
+                {
+                    case "Processing":
+                        (i.State, i.Detail) = (ItemState.Processing, null);
+                        break;
+                    case "Completed":
+                        (i.State, i.NeedsReview, i.FirstWorksheetId) = (ItemState.Done, s.NeedsReview, s.FirstWorksheetId);
+                        i.Detail = $"{s.Pages} sheet(s)" + (s.NeedsReview > 0 ? $", {s.NeedsReview} to review" : ", all auto-approved");
+                        break;
+                    case "Failed":
+                        (i.State, i.Detail) = (ItemState.Failed, s.LastError);
+                        break;
+                    case "Pending" when s.LastError is not null:
+                        i.Detail = "Retrying: " + s.LastError;
+                        break;
+                }
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException) { /* database blip: try again next tick */ }
+    }
+
+    private void ClearFinished() => _items.RemoveAll(i => i.IsFinal);
+
+    private static string Size(long bytes) => bytes >= 1024 * 1024 ? $"{bytes / 1024.0 / 1024:0.0} MB" : $"{Math.Max(1, bytes / 1024)} KB";
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        if (_poller is not null) { try { await _poller; } catch { /* stopping */ } }
+        _cts.Dispose();
     }
 }

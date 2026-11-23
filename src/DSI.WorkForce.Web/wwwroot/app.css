@@ -251,3 +251,16 @@ pre { background: var(--bg); padding: 10px; overflow: auto; font-size: 12px; bor
 }
 h1:focus, h1:focus-visible { outline: none; }
 .form { margin-top: 10px; }
+
+/* Upload page */
+.form-inline { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.dropzone { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+            padding: 34px 16px; margin-bottom: 18px; border: 2px dashed #b9c3cf; border-radius: var(--radius); background: #fff;
+            color: var(--brand-dark); text-align: center; transition: border-color .15s, background .15s; }
+.dropzone:hover { border-color: var(--brand); background: var(--brand-soft); }
+.dropzone.disabled { opacity: .6; }
+.dropzone input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.dropzone.disabled input[type=file] { cursor: not-allowed; }
+.progress { height: 6px; background: #edf0f3; border-radius: 99px; margin-top: 6px; overflow: hidden; max-width: 260px; }
+.progress > div { height: 100%; background: var(--brand); transition: width .2s; }
+.upload-list td { vertical-align: top; }

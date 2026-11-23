@@ -1,4 +1,5 @@
 using Dapper;
+using DSI.WorkForce.Core.Contracts;
 
 namespace DSI.WorkForce.Data.Repositories;
 
@@ -123,6 +124,22 @@ public sealed class ScanQueueRepository(IDbConnectionFactory db)
         var rows = await conn.QueryAsync<(long, string, int, string?, DateTime)>(new CommandDefinition(
             "SELECT TOP (@top) ScanFileId, FileName, Attempts, LastError, ReceivedAt FROM dsi.ScanFile WHERE Status = N'Failed' ORDER BY ReceivedAt DESC",
             new { top }, cancellationToken: ct));
+        return rows.ToList();
+    }
+
+    /// <summary>Processing status of files uploaded from the web (looked up by their hot-folder name).</summary>
+    public async Task<IReadOnlyList<ScanStatusDto>> GetStatusByFileNamesAsync(IReadOnlyCollection<string> storedNames, CancellationToken ct = default)
+    {
+        if (storedNames.Count == 0) return [];
+        await using var conn = await db.OpenAsync(ct);
+        var rows = await conn.QueryAsync<ScanStatusDto>(new CommandDefinition("""
+            SELECT sf.FileName AS StoredName, sf.ScanFileId, sf.Status, sf.LastError,
+                   (SELECT COUNT(*) FROM dsi.Worksheet w WHERE w.ScanFileId = sf.ScanFileId) AS Pages,
+                   (SELECT COUNT(*) FROM dsi.Worksheet w WHERE w.ScanFileId = sf.ScanFileId AND w.Status = N'NeedsReview') AS NeedsReview,
+                   (SELECT MIN(w.WorksheetId) FROM dsi.Worksheet w WHERE w.ScanFileId = sf.ScanFileId) AS FirstWorksheetId
+            FROM dsi.ScanFile sf
+            WHERE sf.FileName IN @storedNames
+            """, new { storedNames }, cancellationToken: ct));
         return rows.ToList();
     }
 }

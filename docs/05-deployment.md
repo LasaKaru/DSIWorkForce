@@ -54,6 +54,16 @@ Worker `appsettings.json`:
 Web `appsettings.json`: `Database`, `Upload:HotFolders`. Users and permissions are managed in the app
 (*Users & permissions*), the license on the *License* page.
 
+## WPF desktop app on other PCs
+
+`desktopsettings.json` next to `DSI.WorkForce.Desktop.exe`:
+
+| Key | Meaning |
+|---|---|
+| `ApiBaseUrl` | Web app address, e.g. `https://dsi-workforce.yourcompany.local/` |
+| `AllowUntrustedCertificate` | `false` in production. `true` bypasses the HTTPS certificate check (development / test only). |
+| `TrustedCertificateThumbprint` | Accept exactly this server certificate (SHA-1 thumbprint) when the server uses a self-signed certificate: secure alternative to the bypass. |
+
 ## Monitoring
 
 * Dashboard: queue depth, failed files, worker heartbeat, today's auto-approve rate.

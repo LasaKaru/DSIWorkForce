@@ -65,8 +65,9 @@ public partial class SqlSyntaxTests(ITestOutputHelper output)
                 .Concat(SimpleLiteral().Matches(code).Select(m => m.Groups[1].Value));
             foreach (var sql in snippets.Where(x => !x.TrimEnd().EndsWith("VALUES", StringComparison.Ordinal)))   // completed at runtime, parsed below
             {
-                // Interpolation holes ({fn}, [{col}]) are always identifiers in this code base.
-                var cleaned = Hole().Replace(sql, "x");
+                // Interpolation holes ({fn}, [{col}]) are always identifiers in this code base;
+                // Dapper expands "IN @list" to "IN (@p1, @p2, ...)" before the query reaches SQL Server.
+                var cleaned = DapperList().Replace(Hole().Replace(sql, "x"), "IN (@$1)");
                 AssertParses($"{Path.GetFileName(file)}: {sql.Trim()[..Math.Min(60, sql.Trim().Length)]}", cleaned);
                 count++;
             }
@@ -79,4 +80,5 @@ public partial class SqlSyntaxTests(ITestOutputHelper output)
     [GeneratedRegex("\"\"\"(.*?)\"\"\"", RegexOptions.Singleline)] private static partial Regex RawLiteral();
     [GeneratedRegex("\\$?\"((?:SELECT|UPDATE|INSERT|DELETE|IF) [^\"]+)\"")] private static partial Regex SimpleLiteral();
     [GeneratedRegex(@"\{[A-Za-z_][A-Za-z0-9_.()]*\}")] private static partial Regex Hole();
+    [GeneratedRegex(@"IN @(\w+)", RegexOptions.IgnoreCase)] private static partial Regex DapperList();
 }
