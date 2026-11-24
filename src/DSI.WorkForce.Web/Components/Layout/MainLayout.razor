@@ -4,6 +4,7 @@
 @using DSI.WorkForce.Data
 @using DSI.WorkForce.Web.Security
 @inject LicenseService Licensing
+@inject BrandingService Branding
 @inject NavigationManager Nav
 
 <div class="app @(_menuOpen ? "menu-open" : "")">
@@ -22,22 +23,26 @@
                     @if (context.User.Can(Permissions.Reports)) { <NavLink href="reports"><Icon Name="reports" /> Reports</NavLink> }
                     @if (context.User.Can(Permissions.Scan)) { <NavLink href="upload"><Icon Name="upload" /> Upload scans</NavLink> }
 
-                    @if (context.User.Can(Permissions.Users) || context.User.Can(Permissions.MasterData) || context.User.Can(Permissions.ReportDesign) || context.User.Can(Permissions.License))
+                    @if (context.User.Can(Permissions.Users) || context.User.Can(Permissions.MasterData) || context.User.Can(Permissions.ReportDesign) || context.User.Can(Permissions.License) || context.User.Can(Permissions.Admin))
                     {
                         <div class="nav-group">Administration</div>
                         @if (context.User.Can(Permissions.Users)) { <NavLink href="admin/users"><Icon Name="users" /> Users &amp; permissions</NavLink> }
                         @if (context.User.Can(Permissions.MasterData)) { <NavLink href="admin/master-data"><Icon Name="database" /> Master data</NavLink> }
                         @if (context.User.Can(Permissions.ReportDesign)) { <NavLink href="admin/reports"><Icon Name="columns" /> Report columns</NavLink> }
                         @if (context.User.Can(Permissions.License)) { <NavLink href="license"><Icon Name="key" /> License</NavLink> }
+                        @if (context.User.Can(Permissions.Admin)) { <NavLink href="admin/settings"><Icon Name="settings" /> Settings</NavLink> }
                     }
                 </nav>
             </Authorized>
         </AuthorizeView>
 
-        <div class="sidebar-foot">
-            <span>Powered by</span>
-            <img src="img/helao2-logo.png" alt="Helao2" />
-        </div>
+        @if (_branding.ShowVendorBranding)
+        {
+            <div class="sidebar-foot">
+                <span>Powered by</span>
+                <img src="img/helao2-logo.png" alt="Helao2" />
+            </div>
+        }
     </aside>
 
     <div class="main">
@@ -103,11 +108,16 @@
 
 @code {
     private LicenseCheck? _license;
+    private DSI.WorkForce.Core.Contracts.BrandingSettings _branding = new();
     private bool _menuOpen;
 
     private bool OnLicensePage => Nav.ToBaseRelativePath(Nav.Uri).StartsWith("license", StringComparison.OrdinalIgnoreCase);
 
-    protected override async Task OnParametersSetAsync() => _license = await Licensing.GetAsync();
+    protected override async Task OnParametersSetAsync()
+    {
+        _license = await Licensing.GetAsync();
+        _branding = await Branding.GetAsync();
+    }
 
     private static string Initials(System.Security.Claims.ClaimsPrincipal u)
     {

@@ -12,6 +12,7 @@ public partial class LoginWindow : Window
         _api = api;
         InitializeComponent();
         if (api.CertificateCheckDisabled) CertWarning.Visibility = Visibility.Visible;
+        Loaded += async (_, _) => CopyrightText.Text = await _api.GetCopyrightAsync();
     }
 
     private async void OnSignIn(object sender, RoutedEventArgs e)

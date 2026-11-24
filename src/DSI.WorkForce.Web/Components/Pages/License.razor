@@ -7,13 +7,15 @@
 @using DSI.WorkForce.Web.Security
 @inject LicenseService Licensing
 @inject AuthenticationStateProvider Auth
+@inject BrandingService Branding
+@inject SettingsRepository Settings
 
 <PageTitle>Product activation - DSI WorkForce</PageTitle>
 
 <div class="license-hero">
-    <img src="img/helao2-logo.png" alt="Helao2" />
+    @if (_branding.ShowVendorBranding) { <img src="img/helao2-logo.png" alt="Helao2" /> }
     <h1>Product activation</h1>
-    <p class="muted">DSI WorkForce OCR &amp; worksheet digitization by Helao2 (Pvt) Ltd</p>
+    <p class="muted">DSI WorkForce OCR &amp; worksheet digitization@(_branding.ShowVendorBranding ? " by Helao2 (Pvt) Ltd" : "")</p>
 </div>
 
 @if (_check is null) { <p>Checking license…</p> }
@@ -37,6 +39,35 @@ else
         </div>
     </div>
 
+    @if (_branding.ShowEnginePanel)
+    {
+        <div class="engine-panel @(_check.IsValid ? "on" : "off")">
+            <img src="img/ocr-engine.svg" alt="" class="engine-logo" />
+            <div class="engine-body">
+                <div class="engine-title">
+                    <b>@_branding.EngineName</b>
+                    <span class="badge @(_check.IsValid ? "autoapproved" : "rejected")">@(_check.IsValid ? "Activated" : "Not activated")</span>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(_branding.EngineTagline)) { <div class="muted">@_branding.EngineTagline</div> }
+                <ul class="engine-parts">
+                    <li><Icon Name="cpu" Size="14" /> Handwriting reader: PaddleOCR PP-OCRv5 (runs locally, no internet needed)</li>
+                    <li><Icon Name="cpu" Size="14" /> Digit reader for the hourly grid: CNN digit model</li>
+                    @if (_signedIn)
+                    {
+                        @if (_engines.Count == 0)
+                        {
+                            <li class="muted"><Icon Name="clock" Size="14" /> No Worker has reported yet - start the DSI WorkForce Worker service.</li>
+                        }
+                        @foreach (var e in _engines)
+                        {
+                            <li><Icon Name="check" Size="14" /> Worker <b>@e.Worker</b>: @e.TextModel@(e.DigitModel ? " + digit model" : "") · ready since @e.ReadyUtc.ToLocalTime().ToString("d MMM HH:mm")</li>
+                        }
+                    }
+                </ul>
+            </div>
+        </div>
+    }
+
     <div class="contact-box">
         <Icon Name="mail" Size="20" />
         <div>
@@ -49,7 +80,7 @@ else
     @if (_canActivate)
     {
         <label class="key-label">License key</label>
-        <textarea class="key-input mono" rows="5" @bind="_key" @bind:event="oninput" placeholder="HLO2-…  (paste the full key you received from Helao2)"></textarea>
+        <textarea class="key-input mono" rows="5" @bind="_key" @bind:event="oninput" placeholder="HLO2-…  (paste the full license key you received)"></textarea>
         <div class="actions-row">
             <button class="btn primary" @onclick="Activate" disabled="@(_busy || string.IsNullOrWhiteSpace(_key))">
                 <Icon Name="check" /> Validate &amp; activate
@@ -79,6 +110,8 @@ else
     private string? _key;
     private bool _busy, _canActivate, _signedIn;
     private string _userName = "";
+    private DSI.WorkForce.Core.Contracts.BrandingSettings _branding = new();
+    private IReadOnlyList<DSI.WorkForce.Core.Contracts.EngineStatus> _engines = [];
 
     private string MailTo => $"mailto:{LicenseService.SupportEmail}?subject={Uri.EscapeDataString("DSI WorkForce license")}" +
                              $"&body={Uri.EscapeDataString($"Installation ID: {Licensing.InstallationId}\nCompany: \nLicense type (trial / subscription / perpetual): \n")}";
@@ -90,6 +123,11 @@ else
         _canActivate = user.Can(Permissions.License);
         _userName = user.Identity?.Name ?? "";
         _check = await Licensing.GetAsync();
+        _branding = await Branding.GetAsync();
+        if (_signedIn && _branding.ShowEnginePanel)
+        {
+            try { _engines = await Settings.GetEnginesAsync(); } catch { /* engine list is informational only */ }
+        }
     }
 
     private async Task Activate()

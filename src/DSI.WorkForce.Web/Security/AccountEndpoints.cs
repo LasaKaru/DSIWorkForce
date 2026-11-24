@@ -68,6 +68,9 @@ public static class AccountEndpoints
             return Results.Ok(new CurrentUserDto(user!.UserId, user.UserName, user.FullName, perms, user.MustChangePassword));
         }).DisableAntiforgery();
 
+        // Branding for the desktop client's sign-in and status bar (no secrets: just display switches).
+        app.MapGet("/api/auth/branding", (DSI.WorkForce.Data.BrandingService branding, CancellationToken ct) => branding.GetAsync(ct)).AllowAnonymous();
+
         app.MapPost("/api/auth/logout", async (HttpContext ctx) =>
         {
             await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);

@@ -1,3 +1,4 @@
+using DSI.WorkForce.Core.Contracts;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reflection;
@@ -28,6 +29,7 @@ public sealed class ExtractionWorker(
     ReferenceDataCache reference,
     DiagnosticsRepository diagnostics,
     LicenseService licensing,
+    SettingsRepository settings,
     FormExtractor extractor,
     WorkerSignals signals,
     IOptions<WorkerOptions> options,
@@ -63,7 +65,15 @@ public sealed class ExtractionWorker(
         _ = Task.Run(() =>
         {
             try { extractor.WarmUp(Math.Min(_degree, 2)); log.LogInformation("OCR engine ready"); }
-            catch (Exception ex) { log.LogWarning(ex, "OCR warm-up failed - it will load on first use"); }
+            catch (Exception ex) { log.LogWarning(ex, "OCR warm-up failed - it will load on first use"); return; }
+            var x = extractionOptions.Value;
+            var recognizer = string.IsNullOrWhiteSpace(x.EscalateTo) || x.EscalateTo.Equals("None", StringComparison.OrdinalIgnoreCase) ? x.Recognizer : $"{x.Recognizer} → {x.EscalateTo}";
+            try
+            {
+                settings.ReportEngineAsync(new EngineStatus(_o.WorkerName, recognizer, $"PaddleOCR {x.Local.Model}", x.UseDigitModel, DateTime.UtcNow),
+                    stoppingToken).GetAwaiter().GetResult();
+            }
+            catch (Exception ex) { log.LogDebug(ex, "Could not publish the engine status"); }
         }, stoppingToken);
         var heartbeat = HeartbeatLoopAsync(stoppingToken);
 

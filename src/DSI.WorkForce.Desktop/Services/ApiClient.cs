@@ -53,6 +53,18 @@ public sealed class ApiClient
         return null;
     }
 
+    /// <summary>Copyright line for the windows, following the "Show Helao2 branding" setting (default when the server is unreachable).</summary>
+    public async Task<string> GetCopyrightAsync()
+    {
+        try
+        {
+            var b = await _http.GetFromJsonAsync<BrandingSettings>("api/auth/branding", Json);
+            if (b is { ShowVendorBranding: false }) return "© 2026 DSI WorkForce";
+        }
+        catch { /* older server or offline: keep the default */ }
+        return "© 2026 Helao2 (Pvt) Ltd · support@helao2.com";
+    }
+
     public async Task<DashboardDto> GetDashboardAsync() => (await _http.GetFromJsonAsync<DashboardDto>("api/dashboard", Json))!;
 
     public async Task<List<WorksheetSummaryDto>> GetWorksheetsAsync(string? status, int top = 500) =>

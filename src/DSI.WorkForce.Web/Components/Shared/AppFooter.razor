@@ -1,11 +1,21 @@
+@inject DSI.WorkForce.Data.BrandingService Branding
 <footer class="app-footer">
-    <span>© 2026 <b>Helao2 (Pvt) Ltd</b>. All rights reserved.</span>
-    <span class="sep">·</span>
-    <a href="mailto:@DSI.WorkForce.Data.LicenseService.SupportEmail">@DSI.WorkForce.Data.LicenseService.SupportEmail</a>
+    @if (_b.ShowVendorBranding)
+    {
+        <span>© 2026 <b>Helao2 (Pvt) Ltd</b>. All rights reserved.</span>
+        <span class="sep">·</span>
+        <a href="mailto:@DSI.WorkForce.Data.LicenseService.SupportEmail">@DSI.WorkForce.Data.LicenseService.SupportEmail</a>
+    }
+    else
+    {
+        <span>© 2026 DSI WorkForce. All rights reserved.</span>
+    }
     @if (ChildContent is not null) { <span class="sep">·</span> @ChildContent }
-    <img src="img/helao2-logo.png" alt="Helao2" class="footer-logo" />
+    @if (_b.ShowVendorBranding) { <img src="img/helao2-logo.png" alt="Helao2" class="footer-logo" /> }
 </footer>
 
 @code {
+    private DSI.WorkForce.Core.Contracts.BrandingSettings _b = new();
     [Parameter] public RenderFragment? ChildContent { get; set; }
+    protected override async Task OnParametersSetAsync() => _b = await Branding.GetAsync();
 }

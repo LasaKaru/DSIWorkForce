@@ -39,6 +39,20 @@ Employees (EPF No, name, section), items (code, description as in the ERP, stand
 and shifts (code exactly as written on the sheet, start and end time). Records are never deleted: set them **inactive**
 and they stay in history but are no longer matched by the OCR. The Worker reloads master data every 5 minutes.
 
+## Settings (Administration › Settings, Administrator only)
+
+| Option | Effect |
+|---|---|
+| **Show Helao2 branding** | On (default): Helao2 logos in the sidebar ("Powered by"), page footer and activation page, plus the "© 2026 Helao2 (Pvt) Ltd" line, on the web and in the WPF app. Off: neutral "© 2026 DSI WorkForce". The support e-mail stays on the activation page so a license can still be renewed. |
+| **Show the OCR engine panel** | Adds a panel to the License page: engine logo, **engine name**, an *Activated* / *Not activated* badge (follows the license), the tagline, the recognition models in use and every Worker that has loaded them. |
+| **Engine name / Tagline** | Free text shown on that panel (defaults: "Helao2 Vision OCR" / "AI handwriting recognition for the automation industry"). |
+
+Settings are stored in `dsi.AppSetting` (`Ui.Branding`, JSON) and reach all users within 30 seconds. Each Worker writes
+`Ocr.Engine.<machine>` once its OCR models are loaded; the Settings page lists them under *Recognition workers*.
+
+The engine panel describes the engines this product really uses (PaddleOCR PP-OCRv5 + CNN digit model, both local).
+Don't name third-party products the system doesn't use (for example a commercial OCR SDK) on this panel.
+
 ## Licensing
 
 The product works only with a valid license key from **Helao2 (Pvt) Ltd**. Without one, or after it expires,

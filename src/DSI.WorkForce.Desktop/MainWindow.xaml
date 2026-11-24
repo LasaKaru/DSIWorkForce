@@ -6,7 +6,7 @@
     <DockPanel>
     <StatusBar DockPanel.Dock="Bottom">
         <StatusBarItem><TextBlock><Run Text="Signed in as " /><Run Text="{Binding SignedInAs, Mode=OneWay}" FontWeight="SemiBold" /></TextBlock></StatusBarItem>
-        <StatusBarItem HorizontalAlignment="Right"><TextBlock Foreground="#64707D" Text="© 2026 Helao2 (Pvt) Ltd · support@helao2.com" /></StatusBarItem>
+        <StatusBarItem HorizontalAlignment="Right"><TextBlock x:Name="CopyrightText" Foreground="#64707D" Text="© 2026 Helao2 (Pvt) Ltd · support@helao2.com" /></StatusBarItem>
     </StatusBar>
     <TabControl Margin="6">
 

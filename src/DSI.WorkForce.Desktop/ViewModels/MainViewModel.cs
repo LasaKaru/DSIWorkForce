@@ -6,6 +6,7 @@ public sealed class MainViewModel
 {
     public MainViewModel(ApiClient api, DesktopSettings settings)
     {
+        Api = api;
         Scan = new ScanStationViewModel(api, settings);
         Review = new ReviewViewModel(api);
         Reports = new ReportViewModel(api);
@@ -15,6 +16,7 @@ public sealed class MainViewModel
         CanReports = api.Can("Reports");
     }
 
+    public ApiClient Api { get; }
     public string SignedInAs { get; init; } = "";
     public bool CanScan { get; init; }
     public bool CanReview { get; init; }

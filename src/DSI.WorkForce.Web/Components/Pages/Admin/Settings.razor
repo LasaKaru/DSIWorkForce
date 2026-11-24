@@ -1,0 +1,106 @@
+@page "/admin/settings"
+@attribute [Authorize(Policy = Permissions.Admin)]
+@using DSI.WorkForce.Data
+@inject BrandingService Branding
+@inject SettingsRepository SettingsRepo
+@inject LicenseService Licensing
+
+<PageTitle>Settings - DSI WorkForce</PageTitle>
+<div class="page-head">
+    <div>
+        <h1>Settings</h1>
+        <p class="muted">Branding and display options. Changes apply to every user within 30 seconds (straight away on this server).</p>
+    </div>
+</div>
+
+@if (_s is null) { <p>Loading…</p> }
+else
+{
+    <div class="card editor">
+        <h2>Vendor branding</h2>
+        <label class="perm">
+            <input type="checkbox" @bind="_s.ShowVendorBranding" />
+            <span><b>Show Helao2 branding</b>
+                <small>Helao2 logos (sidebar "Powered by", page footer, activation page), the Helao2 copyright line and the vendor name on the
+                    activation page. Turn off for neutral DSI WorkForce branding. The support e-mail stays on the activation page so a license can still be renewed.</small></span>
+        </label>
+
+        <h2>OCR engine panel</h2>
+        <label class="perm">
+            <input type="checkbox" @bind="_s.ShowEnginePanel" />
+            <span><b>Show the OCR engine panel on the License page</b>
+                <small>Engine name and logo, "Activated" when the license is valid, the recognition models in use and each Worker's status.</small></span>
+        </label>
+        <div class="form">
+            <label>Engine name<input @bind="_s.EngineName" @bind:event="oninput" maxlength="60" disabled="@(!_s.ShowEnginePanel)" /></label>
+            <label>Tagline<input @bind="_s.EngineTagline" @bind:event="oninput" maxlength="120" disabled="@(!_s.ShowEnginePanel)" /></label>
+        </div>
+
+        <div class="actions-row">
+            <button class="btn primary" @onclick="Save" disabled="@(_busy || string.IsNullOrWhiteSpace(_s.EngineName))"><Icon Name="check" /> Save settings</button>
+            <button class="btn" @onclick="Defaults" disabled="@_busy">Restore defaults</button>
+            <a class="btn" href="license">Preview License page</a>
+        </div>
+        @if (_message is not null) { <div class="alert @(_ok ? "success" : "error")"><Icon Name="@(_ok ? "check" : "alert")" /> @_message</div> }
+    </div>
+
+    <div class="card">
+        <div class="card-head"><h2>Recognition workers</h2><button class="btn" @onclick="LoadEngines"><Icon Name="refresh" /> Refresh</button></div>
+        @if (_engines.Count == 0)
+        {
+            <p class="muted">No Worker has reported yet. Start DSI.WorkForce.Worker (or the Windows service); it reports here once its OCR models are loaded.</p>
+        }
+        else
+        {
+            <table class="grid">
+                <thead><tr><th>Worker</th><th>Recognizer</th><th>Text model</th><th>Digit model</th><th>Ready since</th></tr></thead>
+                <tbody>
+                    @foreach (var e in _engines)
+                    {
+                        <tr><td><b>@e.Worker</b></td><td>@e.Recognizer</td><td>@e.TextModel</td><td>@(e.DigitModel ? "On" : "Off")</td><td>@e.ReadyUtc.ToLocalTime().ToString("d MMM yyyy HH:mm")</td></tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+@code {
+    private DSI.WorkForce.Core.Contracts.BrandingSettings? _s;
+    private IReadOnlyList<DSI.WorkForce.Core.Contracts.EngineStatus> _engines = [];
+    private string? _message;
+    private bool _ok, _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var current = await SettingsRepo.GetBrandingAsync();
+        _s = Copy(current);
+        await LoadEngines();
+    }
+
+    private async Task LoadEngines()
+    {
+        try { _engines = await SettingsRepo.GetEnginesAsync(); } catch { _engines = []; }
+    }
+
+    private async Task Save()
+    {
+        _busy = true; _message = null;
+        try
+        {
+            _s!.EngineName = _s.EngineName.Trim();
+            _s.EngineTagline = (_s.EngineTagline ?? "").Trim();
+            await Branding.SaveAsync(Copy(_s));
+            (_ok, _message) = (true, "Settings saved.");
+        }
+        catch (Exception ex) { (_ok, _message) = (false, "Could not save: " + ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private void Defaults() { _s = new(); _message = null; }
+
+    private static DSI.WorkForce.Core.Contracts.BrandingSettings Copy(DSI.WorkForce.Core.Contracts.BrandingSettings b) => new()
+    {
+        ShowVendorBranding = b.ShowVendorBranding, ShowEnginePanel = b.ShowEnginePanel, EngineName = b.EngineName, EngineTagline = b.EngineTagline,
+    };
+}

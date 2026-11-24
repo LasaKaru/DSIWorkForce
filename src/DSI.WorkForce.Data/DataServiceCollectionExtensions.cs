@@ -17,6 +17,8 @@ public static class DataServiceCollectionExtensions
         services.AddSingleton<UserRepository>();
         services.AddSingleton<LicenseRepository>();
         services.AddSingleton<LicenseService>();
+        services.AddSingleton<SettingsRepository>();
+        services.AddSingleton<BrandingService>();
         return services;
     }
 }
